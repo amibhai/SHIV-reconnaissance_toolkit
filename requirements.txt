@@ -1,0 +1,30 @@
+# Recon Toolkit v2.0 — requirements
+# Install with: pip install -r requirements.txt
+
+# Core scanning
+scapy>=2.5.0
+
+# DNS
+dnspython>=2.4.0
+
+# Rich terminal UI
+rich>=13.0.0
+
+# CLI framework
+typer>=0.9.0
+
+# Configuration
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+
+# SSH credential testing
+paramiko>=3.3.0
+
+# HTML report templates
+jinja2>=3.1.0
+
+# TLS/SSL (standard library ssl is used; cryptography is for advanced ops)
+cryptography>=41.0.0
+
+# TOML config support (Python < 3.11)
+tomli>=2.0.0; python_version < "3.11"
