@@ -1,0 +1,274 @@
+[
+  {
+    "name": "HTTP",
+    "protocol": "tcp",
+    "ports": [80, 8080, 8000, 8008, 8888],
+    "probe_bytes": "GET / HTTP/1.0\r\nHost: {target}\r\nUser-Agent: Mozilla/5.0\r\n\r\n",
+    "match_regex": "Server: (?P<version>[^\\r\\n]+)",
+    "service_name": "http"
+  },
+  {
+    "name": "HTTPS",
+    "protocol": "tcp",
+    "ports": [443, 8443, 4443],
+    "probe_bytes": "HEAD / HTTP/1.0\r\nHost: {target}\r\n\r\n",
+    "match_regex": "Server: (?P<version>[^\\r\\n]+)",
+    "service_name": "https"
+  },
+  {
+    "name": "SSH",
+    "protocol": "tcp",
+    "ports": [22, 2222, 22222],
+    "probe_bytes": "",
+    "match_regex": "(?P<version>SSH-\\S+)",
+    "service_name": "ssh"
+  },
+  {
+    "name": "FTP",
+    "protocol": "tcp",
+    "ports": [21, 2121],
+    "probe_bytes": "",
+    "match_regex": "220[- ](?P<version>[^\\r\\n]+)",
+    "service_name": "ftp"
+  },
+  {
+    "name": "SMTP",
+    "protocol": "tcp",
+    "ports": [25, 587, 465],
+    "probe_bytes": "EHLO recon.local\r\n",
+    "match_regex": "220[- ](?P<version>[^\\r\\n]+)",
+    "service_name": "smtp"
+  },
+  {
+    "name": "POP3",
+    "protocol": "tcp",
+    "ports": [110, 995],
+    "probe_bytes": "",
+    "match_regex": "\\+OK (?P<version>[^\\r\\n]+)",
+    "service_name": "pop3"
+  },
+  {
+    "name": "IMAP",
+    "protocol": "tcp",
+    "ports": [143, 993],
+    "probe_bytes": "",
+    "match_regex": "\\* OK (?P<version>[^\\r\\n]+)",
+    "service_name": "imap"
+  },
+  {
+    "name": "MySQL",
+    "protocol": "tcp",
+    "ports": [3306],
+    "probe_bytes": "",
+    "match_regex": "(?P<version>\\d+\\.\\d+\\.\\d+[^\\x00]*)",
+    "service_name": "mysql"
+  },
+  {
+    "name": "PostgreSQL",
+    "protocol": "tcp",
+    "ports": [5432, 5433],
+    "probe_bytes": "",
+    "match_regex": "(?P<version>PostgreSQL[^\\x00]+)",
+    "service_name": "postgresql"
+  },
+  {
+    "name": "Redis",
+    "protocol": "tcp",
+    "ports": [6379, 6380],
+    "probe_bytes": "INFO server\r\n",
+    "match_regex": "redis_version:(?P<version>[^\\r\\n]+)",
+    "service_name": "redis"
+  },
+  {
+    "name": "MongoDB",
+    "protocol": "tcp",
+    "ports": [27017, 27018, 27019],
+    "probe_bytes": "",
+    "match_regex": "MongoDB[/ ](?P<version>[\\d\\.]+)",
+    "service_name": "mongodb"
+  },
+  {
+    "name": "Elasticsearch",
+    "protocol": "tcp",
+    "ports": [9200, 9300],
+    "probe_bytes": "GET / HTTP/1.0\r\nHost: {target}\r\n\r\n",
+    "match_regex": "\"number\"\\s*:\\s*\"(?P<version>[\\d\\.]+)\"",
+    "service_name": "elasticsearch"
+  },
+  {
+    "name": "Memcached",
+    "protocol": "tcp",
+    "ports": [11211],
+    "probe_bytes": "version\r\n",
+    "match_regex": "VERSION (?P<version>[^\\r\\n]+)",
+    "service_name": "memcached"
+  },
+  {
+    "name": "RDP",
+    "protocol": "tcp",
+    "ports": [3389],
+    "probe_bytes": "",
+    "match_regex": "(?P<version>\\x03\\x00)",
+    "service_name": "rdp"
+  },
+  {
+    "name": "VNC",
+    "protocol": "tcp",
+    "ports": [5900, 5901, 5902],
+    "probe_bytes": "",
+    "match_regex": "RFB (?P<version>[\\d\\.]+)",
+    "service_name": "vnc"
+  },
+  {
+    "name": "Telnet",
+    "protocol": "tcp",
+    "ports": [23],
+    "probe_bytes": "",
+    "match_regex": "(?P<version>[^\\r\\n]{3,80})",
+    "service_name": "telnet"
+  },
+  {
+    "name": "SMB",
+    "protocol": "tcp",
+    "ports": [139, 445],
+    "probe_bytes": "",
+    "match_regex": "(?P<version>SMB|NTLM|Windows)",
+    "service_name": "smb"
+  },
+  {
+    "name": "LDAP",
+    "protocol": "tcp",
+    "ports": [389, 636],
+    "probe_bytes": "0\x0c\x02\x01\x01`\x07\x02\x01\x03\x04\x00\x80\x00",
+    "match_regex": "(?P<version>ldap|LDAP)",
+    "service_name": "ldap"
+  },
+  {
+    "name": "Tomcat",
+    "protocol": "tcp",
+    "ports": [8080, 8009, 8443],
+    "probe_bytes": "GET / HTTP/1.0\r\nHost: {target}\r\n\r\n",
+    "match_regex": "Apache Tomcat/(?P<version>[\\d\\.]+)",
+    "service_name": "tomcat"
+  },
+  {
+    "name": "IIS",
+    "protocol": "tcp",
+    "ports": [80, 443, 8080],
+    "probe_bytes": "HEAD / HTTP/1.0\r\nHost: {target}\r\n\r\n",
+    "match_regex": "Microsoft-IIS/(?P<version>[\\d\\.]+)",
+    "service_name": "iis"
+  },
+  {
+    "name": "Jenkins",
+    "protocol": "tcp",
+    "ports": [8080, 8443, 50000],
+    "probe_bytes": "GET / HTTP/1.0\r\nHost: {target}\r\n\r\n",
+    "match_regex": "X-Jenkins: (?P<version>[\\d\\.]+)",
+    "service_name": "jenkins"
+  },
+  {
+    "name": "GitLab",
+    "protocol": "tcp",
+    "ports": [80, 443],
+    "probe_bytes": "GET /users/sign_in HTTP/1.0\r\nHost: {target}\r\n\r\n",
+    "match_regex": "GitLab(?:EE)?[/ ](?P<version>[\\d\\.]+)",
+    "service_name": "gitlab"
+  },
+  {
+    "name": "RabbitMQ",
+    "protocol": "tcp",
+    "ports": [5672, 15672, 25672],
+    "probe_bytes": "AMQP\x00\x00\x09\x01",
+    "match_regex": "(?P<version>AMQP|RabbitMQ)",
+    "service_name": "rabbitmq"
+  },
+  {
+    "name": "Cassandra",
+    "protocol": "tcp",
+    "ports": [9042, 9160],
+    "probe_bytes": "",
+    "match_regex": "(?P<version>Cassandra|CQL)",
+    "service_name": "cassandra"
+  },
+  {
+    "name": "CouchDB",
+    "protocol": "tcp",
+    "ports": [5984],
+    "probe_bytes": "GET / HTTP/1.0\r\nHost: {target}\r\n\r\n",
+    "match_regex": "\"version\":\"(?P<version>[\\d\\.]+)\"",
+    "service_name": "couchdb"
+  },
+  {
+    "name": "Docker API",
+    "protocol": "tcp",
+    "ports": [2375, 2376],
+    "probe_bytes": "GET /info HTTP/1.0\r\nHost: {target}\r\n\r\n",
+    "match_regex": "\"Version\":\"(?P<version>[^\"]+)\"",
+    "service_name": "docker"
+  },
+  {
+    "name": "Kubernetes API",
+    "protocol": "tcp",
+    "ports": [6443, 8080, 8443],
+    "probe_bytes": "GET /api HTTP/1.0\r\nHost: {target}\r\n\r\n",
+    "match_regex": "\"serverVersion\":\\{\"major\":\"(?P<version>[\\d]+)\"",
+    "service_name": "kubernetes"
+  },
+  {
+    "name": "Rsync",
+    "protocol": "tcp",
+    "ports": [873],
+    "probe_bytes": "",
+    "match_regex": "@RSYNCD: (?P<version>[^\\r\\n]+)",
+    "service_name": "rsync"
+  },
+  {
+    "name": "SNMP",
+    "protocol": "udp",
+    "ports": [161, 162],
+    "probe_bytes": "0&\x02\x01\x00\x04\x06public\xa0\x19\x02\x04\x00\x00\x00\x01\x02\x01\x00\x02\x01\x000\x0b0\t\x06\x05+\x06\x01\x02\x01\x05\x00",
+    "match_regex": "(?P<version>.*)",
+    "service_name": "snmp"
+  },
+  {
+    "name": "NTP",
+    "protocol": "udp",
+    "ports": [123],
+    "probe_bytes": "\x1b\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00",
+    "match_regex": "(?P<version>.*)",
+    "service_name": "ntp"
+  },
+  {
+    "name": "Minecraft",
+    "protocol": "tcp",
+    "ports": [25565],
+    "probe_bytes": "\xfe\x01",
+    "match_regex": "(?P<version>\\d+\\.\\d+[^\\x00]*)",
+    "service_name": "minecraft"
+  },
+  {
+    "name": "HTTP-Proxy",
+    "protocol": "tcp",
+    "ports": [3128, 8118, 8888],
+    "probe_bytes": "GET http://www.example.com/ HTTP/1.0\r\n\r\n",
+    "match_regex": "(?P<version>Squid|Privoxy|TinyProxy)[/ ]([\\d\\.]+)",
+    "service_name": "http-proxy"
+  },
+  {
+    "name": "X11",
+    "protocol": "tcp",
+    "ports": [6000, 6001, 6002],
+    "probe_bytes": "l\x00\x0b\x00\x00\x00\x00\x00\x00\x00\x00\x00",
+    "match_regex": "(?P<version>X11|X Window)",
+    "service_name": "x11"
+  },
+  {
+    "name": "Zookeeper",
+    "protocol": "tcp",
+    "ports": [2181, 2182],
+    "probe_bytes": "stat\n",
+    "match_regex": "Zookeeper version: (?P<version>[^,\\n]+)",
+    "service_name": "zookeeper"
+  }
+]

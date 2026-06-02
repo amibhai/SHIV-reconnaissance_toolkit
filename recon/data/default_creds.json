@@ -1,0 +1,163 @@
+[
+  {
+    "service": "ftp",
+    "port": 21,
+    "credentials": [
+      {"user": "anonymous", "pass": ""},
+      {"user": "anonymous", "pass": "anonymous@example.com"},
+      {"user": "ftp",       "pass": "ftp"},
+      {"user": "admin",     "pass": "admin"},
+      {"user": "admin",     "pass": "password"},
+      {"user": "root",      "pass": "root"},
+      {"user": "user",      "pass": "user"},
+      {"user": "test",      "pass": "test"},
+      {"user": "guest",     "pass": "guest"}
+    ]
+  },
+  {
+    "service": "ssh",
+    "port": 22,
+    "credentials": [
+      {"user": "root",     "pass": "root"},
+      {"user": "root",     "pass": "toor"},
+      {"user": "root",     "pass": "password"},
+      {"user": "root",     "pass": "123456"},
+      {"user": "admin",    "pass": "admin"},
+      {"user": "admin",    "pass": "password"},
+      {"user": "ubuntu",   "pass": "ubuntu"},
+      {"user": "pi",       "pass": "raspberry"},
+      {"user": "user",     "pass": "user"},
+      {"user": "test",     "pass": "test"},
+      {"user": "vagrant",  "pass": "vagrant"},
+      {"user": "deploy",   "pass": "deploy"},
+      {"user": "oracle",   "pass": "oracle"},
+      {"user": "postgres", "pass": "postgres"},
+      {"user": "mysql",    "pass": "mysql"}
+    ]
+  },
+  {
+    "service": "http",
+    "port": 80,
+    "credentials": [
+      {"user": "admin",     "pass": "admin"},
+      {"user": "admin",     "pass": "password"},
+      {"user": "admin",     "pass": ""},
+      {"user": "root",      "pass": "root"},
+      {"user": "admin",     "pass": "123456"},
+      {"user": "test",      "pass": "test"},
+      {"user": "guest",     "pass": "guest"},
+      {"user": "user",      "pass": "user"},
+      {"user": "admin",     "pass": "admin123"},
+      {"user": "supervisor","pass": "supervisor"}
+    ]
+  },
+  {
+    "service": "https",
+    "port": 443,
+    "credentials": [
+      {"user": "admin",  "pass": "admin"},
+      {"user": "admin",  "pass": "password"},
+      {"user": "admin",  "pass": ""},
+      {"user": "root",   "pass": "root"},
+      {"user": "admin",  "pass": "123456"}
+    ]
+  },
+  {
+    "service": "redis",
+    "port": 6379,
+    "credentials": [
+      {"user": "",  "pass": ""},
+      {"user": "",  "pass": "redis"},
+      {"user": "",  "pass": "password"},
+      {"user": "",  "pass": "123456"},
+      {"user": "",  "pass": "admin"},
+      {"user": "",  "pass": "foobared"}
+    ]
+  },
+  {
+    "service": "mysql",
+    "port": 3306,
+    "credentials": [
+      {"user": "root",  "pass": ""},
+      {"user": "root",  "pass": "root"},
+      {"user": "root",  "pass": "password"},
+      {"user": "root",  "pass": "mysql"},
+      {"user": "root",  "pass": "123456"},
+      {"user": "admin", "pass": "admin"},
+      {"user": "mysql", "pass": "mysql"}
+    ]
+  },
+  {
+    "service": "mongodb",
+    "port": 27017,
+    "credentials": [
+      {"user": "admin",  "pass": "admin"},
+      {"user": "admin",  "pass": ""},
+      {"user": "root",   "pass": "root"},
+      {"user": "mongodb","pass": "mongodb"}
+    ]
+  },
+  {
+    "service": "postgresql",
+    "port": 5432,
+    "credentials": [
+      {"user": "postgres", "pass": ""},
+      {"user": "postgres", "pass": "postgres"},
+      {"user": "postgres", "pass": "password"},
+      {"user": "admin",    "pass": "admin"}
+    ]
+  },
+  {
+    "service": "smb",
+    "port": 445,
+    "credentials": [
+      {"user": "administrator", "pass": ""},
+      {"user": "administrator", "pass": "password"},
+      {"user": "admin",         "pass": "admin"},
+      {"user": "guest",         "pass": ""},
+      {"user": "user",          "pass": "user"}
+    ]
+  },
+  {
+    "service": "vnc",
+    "port": 5900,
+    "credentials": [
+      {"user": "", "pass": ""},
+      {"user": "", "pass": "password"},
+      {"user": "", "pass": "123456"},
+      {"user": "", "pass": "vnc"}
+    ]
+  },
+  {
+    "service": "tomcat",
+    "port": 8080,
+    "credentials": [
+      {"user": "admin",    "pass": "admin"},
+      {"user": "tomcat",   "pass": "tomcat"},
+      {"user": "tomcat",   "pass": "s3cret"},
+      {"user": "manager",  "pass": "manager"},
+      {"user": "admin",    "pass": "password"},
+      {"user": "admin",    "pass": ""},
+      {"user": "root",     "pass": "root"}
+    ]
+  },
+  {
+    "service": "jenkins",
+    "port": 8080,
+    "credentials": [
+      {"user": "admin",   "pass": "admin"},
+      {"user": "jenkins", "pass": "jenkins"},
+      {"user": "admin",   "pass": "password"},
+      {"user": "admin",   "pass": ""}
+    ]
+  },
+  {
+    "service": "elasticsearch",
+    "port": 9200,
+    "credentials": [
+      {"user": "elastic", "pass": ""},
+      {"user": "elastic", "pass": "elastic"},
+      {"user": "admin",   "pass": "admin"}
+    ]
+  }
+]
