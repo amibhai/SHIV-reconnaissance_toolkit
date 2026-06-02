@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Recon Report — {{ report.target }}</title>
+  <style>
+    :root {
+      --bg: #0d1117; --bg2: #161b22; --bg3: #21262d;
+      --border: #30363d; --text: #c9d1d9; --text-muted: #8b949e;
+      --blue: #58a6ff; --green: #3fb950; --yellow: #d29922;
+      --orange: #f0883e; --red: #f85149; --purple: #bc8cff;
+      --critical: #f85149; --high: #f0883e; --medium: #d29922;
+      --low: #3fb950; --info: #58a6ff;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, monospace; font-size: 14px; line-height: 1.5; }
+    a { color: var(--blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* Layout */
+    .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+    header { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 24px; margin-bottom: 24px; }
+    header h1 { font-size: 1.8em; color: var(--blue); }
+    header .meta { color: var(--text-muted); margin-top: 8px; font-size: 0.9em; }
+    .disclaimer { background: #261800; border: 1px solid var(--orange); border-radius: 6px; padding: 12px 16px; margin-bottom: 24px; color: var(--orange); font-size: 0.85em; }
+    .disclaimer strong { color: var(--red); }
+
+    /* Summary cards */
+    .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 24px; }
+    .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 16px; text-align: center; }
+    .card .num { font-size: 2.5em; font-weight: 700; line-height: 1; }
+    .card .label { color: var(--text-muted); font-size: 0.8em; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .card.critical .num { color: var(--critical); }
+    .card.high .num { color: var(--high); }
+    .card.medium .num { color: var(--medium); }
+    .card.low .num { color: var(--low); }
+    .card.info-card .num { color: var(--info); }
+    .card.neutral .num { color: var(--text); }
+
+    /* Section headers */
+    section { margin-bottom: 32px; }
+    .section-header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+    .section-header h2 { font-size: 1.1em; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.75em; font-weight: 600; }
+    .badge.critical { background: rgba(248,81,73,0.2); color: var(--critical); border: 1px solid var(--critical); }
+    .badge.high     { background: rgba(240,136,62,0.2); color: var(--high); border: 1px solid var(--high); }
+    .badge.medium   { background: rgba(210,153,34,0.2); color: var(--medium); border: 1px solid var(--medium); }
+    .badge.low      { background: rgba(63,185,80,0.2); color: var(--low); border: 1px solid var(--low); }
+    .badge.info     { background: rgba(88,166,255,0.2); color: var(--info); border: 1px solid var(--info); }
+    .badge.open     { background: rgba(63,185,80,0.2); color: var(--green); border: 1px solid var(--green); }
+    .badge.closed   { background: rgba(139,148,158,0.2); color: var(--text-muted); border: 1px solid var(--text-muted); }
+    .badge.filtered { background: rgba(210,153,34,0.2); color: var(--yellow); border: 1px solid var(--yellow); }
+
+    /* Tables */
+    .table-wrap { overflow-x: auto; border-radius: 8px; border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; }
+    th { background: var(--bg3); color: var(--text-muted); font-size: 0.75em; text-transform: uppercase; letter-spacing: 0.05em; padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; cursor: pointer; user-select: none; }
+    th:hover { color: var(--text); }
+    th.asc::after  { content: " ↑"; }
+    th.desc::after { content: " ↓"; }
+    td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; word-break: break-word; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+
+    /* Code / evidence */
+    .evidence { font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 0.8em; background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; padding: 6px 8px; white-space: pre-wrap; word-break: break-all; max-height: 100px; overflow-y: auto; color: #adbac7; }
+
+    /* Collapsible */
+    details { margin-bottom: 8px; }
+    summary { cursor: pointer; padding: 6px 8px; border-radius: 4px; background: var(--bg3); }
+    summary:hover { background: var(--border); }
+
+    /* Empty state */
+    .empty { color: var(--text-muted); text-align: center; padding: 24px; }
+
+    /* Footer */
+    footer { border-top: 1px solid var(--border); padding-top: 16px; color: var(--text-muted); font-size: 0.8em; text-align: center; }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <header>
+    <h1>&#128269; Recon Report</h1>
+    <div class="meta">
+      <strong>Target:</strong> {{ report.target }} &nbsp;|&nbsp;
+      <strong>Scan type:</strong> {{ report.scan_type }} &nbsp;|&nbsp;
+      <strong>Duration:</strong> {{ "%.1f"|format(report.duration_seconds) }}s &nbsp;|&nbsp;
+      <strong>Generated:</strong> {{ generated_at }}
+      {% if report.operator %} &nbsp;|&nbsp; <strong>Operator:</strong> {{ report.operator }}{% endif %}
+    </div>
+  </header>
+
+  <!-- Disclaimer -->
+  <div class="disclaimer">
+    <strong>&#9888; LEGAL NOTICE:</strong> This report is generated by an authorized security testing tool.
+    Redistribution to unauthorized parties or use of findings for malicious purposes is illegal.
+    Handle according to your organization's data classification policy.
+  </div>
+
+  <!-- Summary cards -->
+  <div class="summary-grid">
+    <div class="card neutral"><div class="num">{{ report.summary.hosts_found }}</div><div class="label">Hosts Found</div></div>
+    <div class="card info-card"><div class="num">{{ report.summary.dns_records }}</div><div class="label">DNS Records</div></div>
+    <div class="card info-card"><div class="num">{{ report.summary.subdomains }}</div><div class="label">Subdomains</div></div>
+    <div class="card neutral"><div class="num">{{ report.summary.findings }}</div><div class="label">Total Findings</div></div>
+    <div class="card critical"><div class="num">{{ report.summary.critical }}</div><div class="label">Critical</div></div>
+    <div class="card high"><div class="num">{{ report.summary.high }}</div><div class="label">High</div></div>
+  </div>
+
+  <!-- Findings -->
+  {% if report.findings %}
+  <section>
+    <div class="section-header"><h2>&#128274; Vulnerability Findings</h2><span class="badge critical">{{ report.findings|length }}</span></div>
+    <div class="table-wrap">
+      <table id="findings-table">
+        <thead><tr>
+          <th onclick="sortTable('findings-table',0)">Severity</th>
+          <th onclick="sortTable('findings-table',1)">CVE / Finding</th>
+          <th onclick="sortTable('findings-table',2)">Service</th>
+          <th onclick="sortTable('findings-table',3)">Port</th>
+          <th onclick="sortTable('findings-table',4)">Description</th>
+          <th>Remediation</th>
+          <th>Evidence</th>
+        </tr></thead>
+        <tbody>
+          {% for f in report.findings %}
+          <tr>
+            <td><span class="badge {{ f.severity }}">{{ f.severity|upper }}</span></td>
+            <td>{{ f.cve }}</td>
+            <td>{{ f.service }}</td>
+            <td>{{ f.port }}</td>
+            <td>{{ f.description }}</td>
+            <td>{{ f.remediation }}</td>
+            <td>{% if f.evidence %}<div class="evidence">{{ f.evidence }}</div>{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
+
+  <!-- Hosts -->
+  {% if report.hosts %}
+  <section>
+    <div class="section-header"><h2>&#127760; Discovered Hosts</h2><span class="badge open">{{ report.hosts|length }}</span></div>
+    {% for host in report.hosts %}
+    <details>
+      <summary>
+        <strong>{{ host.ip }}</strong>
+        {% if host.hostname %} — {{ host.hostname }}{% endif %}
+        {% if host.os_guess %} | OS: {{ host.os_guess }} ({{ host.os_confidence }}%){% endif %}
+        {% if host.mac %} | MAC: {{ host.mac }} ({{ host.vendor }}){% endif %}
+        {% if host.ports %} | <span class="badge open">{{ host.ports|length }} ports</span>{% endif %}
+        {% if host.findings %} | <span class="badge critical">{{ host.findings|length }} findings</span>{% endif %}
+      </summary>
+      {% if host.ports %}
+      <div class="table-wrap" style="margin-top:8px">
+        <table>
+          <thead><tr><th>Port</th><th>State</th><th>Service</th><th>Version</th><th>Banner</th></tr></thead>
+          <tbody>
+            {% for p in host.ports %}
+            <tr>
+              <td>{{ p.port }}/{{ p.protocol|default('tcp') }}</td>
+              <td><span class="badge {{ p.state|default('open') }}">{{ p.state|default('open')|upper }}</span></td>
+              <td>{{ p.service }}</td>
+              <td>{{ p.version }}</td>
+              <td>{% if p.banner %}<div class="evidence">{{ p.banner[:100] }}</div>{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+    </details>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  <!-- DNS Records -->
+  {% if report.dns_records %}
+  <section>
+    <div class="section-header"><h2>&#128203; DNS Records</h2><span class="badge info">{{ report.dns_records|length }}</span></div>
+    <div class="table-wrap">
+      <table id="dns-table">
+        <thead><tr>
+          <th onclick="sortTable('dns-table',0)">Name</th>
+          <th onclick="sortTable('dns-table',1)">Type</th>
+          <th onclick="sortTable('dns-table',2)">Value</th>
+          <th onclick="sortTable('dns-table',3)">TTL</th>
+        </tr></thead>
+        <tbody>
+          {% for r in report.dns_records %}
+          <tr>
+            <td>{{ r.name }}</td>
+            <td><span class="badge info">{{ r.type }}</span></td>
+            <td>{{ r.value }}</td>
+            <td>{{ r.ttl }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
+
+  <!-- Subdomains -->
+  {% if report.subdomains %}
+  <section>
+    <div class="section-header"><h2>&#127968; Subdomains</h2><span class="badge open">{{ report.subdomains|length }}</span></div>
+    <div class="table-wrap">
+      <table id="sub-table">
+        <thead><tr>
+          <th onclick="sortTable('sub-table',0)">FQDN</th>
+          <th onclick="sortTable('sub-table',1)">IPs</th>
+          <th onclick="sortTable('sub-table',2)">TTL</th>
+        </tr></thead>
+        <tbody>
+          {% for s in report.subdomains %}
+          <tr>
+            <td>{{ s.fqdn }}</td>
+            <td>{{ s.ips }}</td>
+            <td>{{ s.ttl }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
+
+  <!-- Wireless -->
+  {% if report.wireless_networks %}
+  <section>
+    <div class="section-header"><h2>&#128246; Wireless Networks</h2><span class="badge info">{{ report.wireless_networks|length }}</span></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>BSSID</th><th>SSID</th><th>Ch</th><th>Signal</th><th>Encryption</th><th>Flags</th></tr></thead>
+        <tbody>
+          {% for n in report.wireless_networks %}
+          <tr>
+            <td>{{ n.bssid }}</td>
+            <td>{{ n.ssid }}</td>
+            <td>{{ n.channel }}</td>
+            <td>{{ n.signal_dbm }} dBm</td>
+            <td><span class="badge {% if n.encryption == 'Open' %}critical{% elif 'WPA3' in n.encryption %}low{% else %}medium{% endif %}">{{ n.encryption }}</span></td>
+            <td>
+              {% if n.pmkid_seen %}<span class="badge high">PMKID</span>{% endif %}
+              {% if n.eapol_seen %}<span class="badge medium">EAPOL</span>{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
+
+  <!-- Errors -->
+  {% if report.errors %}
+  <section>
+    <div class="section-header"><h2>&#9888; Scan Errors</h2></div>
+    <ul style="color:var(--text-muted); padding-left:1.2em;">
+      {% for e in report.errors %}<li>{{ e }}</li>{% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  <footer>
+    Generated by <strong>Recon Toolkit v2.0</strong> &mdash;
+    For authorized security testing only &mdash;
+    {{ generated_at }}
+  </footer>
+
+</div>
+
+<script>
+  function sortTable(tableId, col) {
+    const table = document.getElementById(tableId);
+    if (!table) return;
+    const tbody = table.querySelector('tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    const th = table.querySelectorAll('th')[col];
+    const asc = !th.classList.contains('asc');
+    table.querySelectorAll('th').forEach(h => h.classList.remove('asc','desc'));
+    th.classList.add(asc ? 'asc' : 'desc');
+    rows.sort((a, b) => {
+      const va = a.cells[col]?.textContent.trim() || '';
+      const vb = b.cells[col]?.textContent.trim() || '';
+      const na = parseFloat(va), nb = parseFloat(vb);
+      if (!isNaN(na) && !isNaN(nb)) return asc ? na - nb : nb - na;
+      return asc ? va.localeCompare(vb) : vb.localeCompare(va);
+    });
+    rows.forEach(r => tbody.appendChild(r));
+  }
+</script>
+</body>
+</html>
