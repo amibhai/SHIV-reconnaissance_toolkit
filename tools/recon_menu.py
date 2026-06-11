@@ -29,7 +29,15 @@ from datetime import datetime
 
 # ── Resolve sibling module imports ────────────────────────────────────────────
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+ROOT_DIR   = os.path.dirname(SCRIPT_DIR)
 sys.path.insert(0, SCRIPT_DIR)
+sys.path.insert(0, ROOT_DIR)
+
+try:
+    from recon.core.logger import print_banner as _full_banner, print_compact_header
+    _HAS_LOGGER = True
+except Exception:
+    _HAS_LOGGER = False
 
 # ── Optional Scapy (needed for PCAP) ─────────────────────────────────────────
 try:
@@ -52,16 +60,19 @@ class C:
 
 
 def banner():
-    os.system('clear' if os.name != 'nt' else 'cls')
-    print(f"""{C.CYN}{C.BOLD}
- ██████╗ ███████╗ ██████╗ ██████╗ ███╗   ██╗
- ██╔══██╗██╔════╝██╔════╝██╔═══██╗████╗  ██║
- ██████╔╝█████╗  ██║     ██║   ██║██╔██╗ ██║
- ██╔══██╗██╔══╝  ██║     ██║   ██║██║╚██╗██║
- ██║  ██║███████╗╚██████╗╚██████╔╝██║ ╚████║
- ╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝  Toolkit{C.R}
-{C.DIM}  Authorized security testing only · sudo recommended{C.R}
-{C.LINE}""")
+    """Compact header shown at the top of every menu screen (not the full launch banner)."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    if _HAS_LOGGER:
+        try:
+            print_compact_header()
+            return
+        except Exception:
+            pass
+    # Fallback: plain header
+    ts = datetime.now().strftime("%Y-%m-%d  %H:%M:%S")
+    print(f"\033[1;38;5;51m  recon-toolkit\033[0m"
+          f"\033[38;5;238m  ◈  \033[0m"
+          f"\033[2;38;5;240m{ts}\033[0m\n")
 
 
 def hdr(title, description=""):
@@ -906,6 +917,12 @@ def main_menu():
 # ═════════════════════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
+    # Full wifi_down-style launch banner — shown ONCE at startup
+    if _HAS_LOGGER:
+        try:
+            _full_banner()
+        except Exception:
+            pass
     try:
         main_menu()
     except KeyboardInterrupt:

@@ -9,15 +9,18 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import random
 import sys
+import textwrap
 import threading
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from rich.console import Console
 from rich.logging import RichHandler
-from rich.panel import Panel
 from rich.progress import (
     BarColumn,
     MofNCompleteColumn,
@@ -28,7 +31,9 @@ from rich.progress import (
     TimeElapsedColumn,
     TimeRemainingColumn,
 )
+from rich.style import Style
 from rich.table import Table
+from rich.text import Text
 from rich.theme import Theme
 
 __all__ = [
@@ -37,6 +42,7 @@ __all__ = [
     "err_console",
     "make_progress",
     "print_banner",
+    "print_compact_header",
     "print_findings_table",
 ]
 
@@ -139,7 +145,6 @@ def configure_logging(verbosity: int = 1, log_file: Path | None = None) -> None:
         jsonl = _JsonlHandler(level=logging.DEBUG)
         root.addHandler(jsonl)
 
-    # Silence noisy third-party loggers
     for noisy in ("scapy.runtime", "scapy.loading", "paramiko", "urllib3"):
         logging.getLogger(noisy).setLevel(logging.ERROR)
 
@@ -180,34 +185,251 @@ def make_progress(description: str = "Scanning") -> Progress:
     )
 
 
-def print_banner() -> None:
-    """Print the toolkit banner with legal disclaimer."""
-    banner = r"""
-[bold red]
- ____  _____ ____ ___  _   _
-|  _ \| ____/ ___/ _ \| \ | |
-| |_) |  _|| |  | | | |  \| |
-|  _ <| |__| |__| |_| | |\  |
-|_| \_\_____\____\___/|_| \_|[/bold red]
-[bold yellow]     Network Reconnaissance Suite v2.0[/bold yellow]
-    """
-    console.print(banner)
-    console.print(
-        Panel(
-            "[bold yellow]⚠  LEGAL NOTICE[/bold yellow]\n\n"
-            "This toolkit is designed for [bold]authorized security testing[/bold] "
-            "and [bold]educational purposes only[/bold].\n\n"
-            "Unauthorized use against systems you do not own or lack explicit "
-            "written permission to test is [bold red]illegal[/bold red] and may "
-            "violate the Computer Fraud and Abuse Act (CFAA), the UK Computer "
-            "Misuse Act, and equivalent laws worldwide.\n\n"
-            "By using this tool you confirm you have [bold green]written authorization[/bold green] "
-            "from the target system owner.",
-            style="yellow",
-            title="[bold red]WARNING[/bold red]",
-            expand=False,
-        )
+# ─── Banner system (wifi_down-style) ─────────────────────────────────────────
+
+RECON_ART = """\
+██████╗ ███████╗ ██████╗ ██████╗ ███╗   ██╗
+██╔══██╗██╔════╝██╔════╝██╔═══██╗████╗  ██║
+██████╔╝█████╗  ██║     ██║   ██║██╔██╗ ██║
+██╔══██╗██╔══╝  ██║     ██║   ██║██║╚██╗██║
+██║  ██║███████╗╚██████╗╚██████╔╝██║ ╚████║
+╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═════╝╚═╝  ╚═══╝"""
+
+QUOTES = [
+    (
+        "Kevin Mitnick",
+        "The human side of computer security is easily exploited "
+        "and we still don't take it seriously enough.",
+    ),
+    ("Bruce Schneier", "Security is not a product, but a process."),
+    ("Bruce Schneier", "Amateurs hack systems, professionals hack people."),
+    (
+        "Dan Kaminsky",
+        "We keep saying the internet isn't a safe place. "
+        "But we built it as if it was.",
+    ),
+    ("Mikko Hyppönen", "If it's smart, it's vulnerable."),
+    (
+        "Edward Snowden",
+        "Arguing that you don't care about privacy because you have "
+        "nothing to hide is no different from saying you don't care "
+        "about free speech because you have nothing to say.",
+    ),
+    ("Richard Stallman", "Free software is a matter of liberty, not price."),
+    (
+        "Gene Spafford",
+        "The only truly secure system is one that is powered off, "
+        "cast in a block of concrete and sealed in a lead-lined room "
+        "with armed guards.",
+    ),
+    (
+        "Parisa Tabriz",
+        "I think of hacking as an intellectual challenge — "
+        "a puzzle waiting to be solved.",
+    ),
+]
+
+_CORNER_CHARS = frozenset("╗╔╝╚╣╠╦╩╬")
+
+_S_LEFT   = Style(color="color(51)")
+_S_MID    = Style(color="color(87)", bold=True)
+_S_RIGHT  = Style(color="color(50)")
+_S_CORNER = Style(color="color(45)", bold=True)
+
+_RESET_ESC = "\033[0m"
+
+
+def _make_banner_console() -> Console:
+    """Create a console pointing at the (possibly reconfigured) stdout."""
+    try:
+        if hasattr(sys.stdout, "reconfigure"):
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+    return Console(file=sys.stdout, force_terminal=True, legacy_windows=False)
+
+
+def _ansi(style_str: str) -> str:
+    """Convert space-separated style tokens to an ANSI escape sequence."""
+    codes: list[str] = []
+    for token in style_str.split():
+        if token == "bold":
+            codes.append("1")
+        elif token == "dim":
+            codes.append("2")
+        elif token == "italic":
+            codes.append("3")
+        elif token.startswith("color(") and token.endswith(")"):
+            n = token[6:-1]
+            codes.append(f"38;5;{n}")
+    return f"\033[{';'.join(codes)}m" if codes else ""
+
+
+def _raw_write(text: str) -> None:
+    """Write to stdout and flush immediately (single-stream, no buffer conflict)."""
+    sys.stdout.write(text)
+    sys.stdout.flush()
+
+
+def _typewrite(text: str, style: str = "", delay: float = 0.018, newline: bool = True) -> None:
+    """Print text character-by-character with optional ANSI style and delay."""
+    esc = _ansi(style) if style else ""
+    for char in text:
+        _raw_write(f"{esc}{char}{_RESET_ESC}" if esc else char)
+        time.sleep(delay)
+    if newline:
+        _raw_write("\n")
+
+
+def _color_row(row: str) -> Text:
+    """Apply tri-zone cyan gradient to a single art row."""
+    n  = len(row)
+    t1 = row[: n // 3]
+    t2 = row[n // 3 : 2 * n // 3]
+    t3 = row[2 * n // 3 :]
+
+    def _section(s: str, base: Style) -> list:
+        return [(ch, _S_CORNER if ch in _CORNER_CHARS else base) for ch in s]
+
+    return Text.assemble(
+        *_section(t1, _S_LEFT),
+        *_section(t2, _S_MID),
+        *_section(t3, _S_RIGHT),
     )
+
+
+def _print_art(bc: Console) -> None:
+    """Scan-line reveal — print each art row with a 0.04 s delay."""
+    for row in RECON_ART.splitlines():
+        if not row.strip():
+            continue
+        bc.print(_color_row(row))
+        time.sleep(0.04)
+
+
+def _print_made_by() -> None:
+    """Left-aligned 'made by Swastik' printed char-by-char at 0.04 s/char."""
+    parts = [
+        ("── made by ", "color(240) italic"),
+        ("Swastik",     "color(213) bold"),
+        (" ──",         "color(240) italic"),
+    ]
+    for text, style_str in parts:
+        esc = _ansi(style_str)
+        for char in text:
+            _raw_write(f"{esc}{char}{_RESET_ESC}")
+            time.sleep(0.04)
+    _raw_write("\n")
+
+
+def _print_quote(bc: Console, author: str, quote: str) -> None:
+    """Single quote with separator/❝❞ formatting, typewriter output."""
+    sep = "  ─────────────────────────────────────────────────"
+    _typewrite(sep, style="color(238) dim", delay=0.005)
+    bc.print()
+
+    wrapped_lines = textwrap.fill(quote, width=65).splitlines()
+    for i, ln in enumerate(wrapped_lines):
+        prefix = "   ❝  " if i == 0 else "      "
+        suffix = "  ❞" if i == len(wrapped_lines) - 1 else ""
+        _typewrite(prefix + ln + suffix, style="color(252) italic", delay=0.022)
+
+    bc.print()
+    _typewrite(f"        — {author}", style="color(87) bold", delay=0.035)
+    bc.print()
+    _typewrite(sep, style="color(238) dim", delay=0.005)
+
+
+def _print_disclaimer(bc: Console) -> None:
+    """Plain typewriter legal notice — no Rich Panel."""
+    sep = "  ─────────────────────────────────────────────────"
+    bc.print()
+    _typewrite(sep, style="color(238) dim", delay=0.005)
+    bc.print()
+    _typewrite("  ⚠  LEGAL NOTICE", style="color(196) bold", delay=0.03)
+    bc.print()
+    _typewrite("  Use only on systems you own or have written",      style="color(252)", delay=0.015)
+    _typewrite("  permission to test. Unauthorized access is a",     style="color(252)", delay=0.015)
+    _typewrite("  criminal offence under CFAA, IT Act 2000 and",     style="color(252)", delay=0.015)
+    _typewrite("  equivalent laws worldwide. No liability accepted.", style="color(252)", delay=0.015)
+    bc.print()
+    _typewrite(sep, style="color(238) dim", delay=0.005)
+
+
+def _print_status(bc: Console) -> None:
+    """Segment-by-segment ANSI typewriter status line."""
+    ts = datetime.now().strftime("%Y-%m-%d  %H:%M:%S")
+    bc.print()
+    segments = [
+        ("  ◈ ",        "color(51)"),
+        ("toolkit: ",     "color(240) dim"),
+        ("recon v2.0",    "color(87) bold"),
+        ("   ◈ ",       "color(51)"),
+        ("status: ",      "color(240) dim"),
+        ("ready",         "color(87) bold"),
+        ("   ◈ ",       "color(51)"),
+        (ts,              "color(87) bold"),
+    ]
+    for text, style_str in segments:
+        esc = _ansi(style_str)
+        for char in text:
+            _raw_write(f"{esc}{char}{_RESET_ESC}")
+            time.sleep(0.012)
+    _raw_write("\n")
+
+
+def _print_enter_prompt(bc: Console) -> None:
+    """Typewriter prompt → 3-color pulse → wait for ENTER → clear screen."""
+    prompt = "         [ Press ENTER to launch recon-toolkit ]"
+    bc.print()
+    _typewrite(prompt, style="color(51) bold", delay=0.045)
+
+    pulse_colors = ["color(51)", "color(87)", "color(123)", "color(87)", "color(51)"]
+    for _ in range(3):
+        for c in pulse_colors:
+            esc = _ansi(c + " bold")
+            _raw_write(f"\r{esc}{prompt}{_RESET_ESC}   ")
+            time.sleep(0.15)
+
+    _raw_write("\r" + " " * (len(prompt) + 3) + "\r")
+
+    try:
+        input("")
+    except (EOFError, KeyboardInterrupt):
+        pass
+
+    bc.clear()
+
+
+def print_banner() -> None:
+    """Full launch banner — wifi_down-style, called once at startup."""
+    os.system("cls" if os.name == "nt" else "clear")
+    bc = _make_banner_console()
+
+    _print_art(bc)
+    _print_made_by()
+
+    author, quote = random.choice(QUOTES)
+    bc.print()
+    _print_quote(bc, author, quote)
+    _print_disclaimer(bc)
+    _print_status(bc)
+    _print_enter_prompt(bc)
+
+
+def print_compact_header(target: str | None = None) -> None:
+    """One-line header shown at the top of each command run."""
+    ts    = datetime.now().strftime("%Y-%m-%d  %H:%M:%S")
+    label = target or "no target"
+    t = Text.assemble(
+        ("  recon-toolkit", Style(color="color(51)", bold=True)),
+        ("  ◈  ",       Style(color="color(238)")),
+        (ts,                Style(color="color(240)", dim=True)),
+        ("  ◈  ",       Style(color="color(238)")),
+        (label,             Style(color="color(87)")),
+    )
+    console.print(t)
+    console.print()
 
 
 def print_findings_table(findings: list[dict[str, Any]], title: str = "Findings") -> None:
@@ -232,14 +454,14 @@ def print_findings_table(findings: list[dict[str, Any]], title: str = "Findings"
 
     sev_styles = {
         "critical": "bold red",
-        "high": "red",
-        "medium": "yellow",
-        "low": "green",
-        "info": "cyan",
+        "high":     "red",
+        "medium":   "yellow",
+        "low":      "green",
+        "info":     "cyan",
     }
 
     for f in findings:
-        sev = f.get("severity", "info").lower()
+        sev   = f.get("severity", "info").lower()
         style = sev_styles.get(sev, "white")
         table.add_row(
             f"[{style}]{sev.upper()}[/{style}]",
