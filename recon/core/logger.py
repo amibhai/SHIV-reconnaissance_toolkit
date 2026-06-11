@@ -9,8 +9,12 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import random
 import sys
+import textwrap
 import threading
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -28,7 +32,9 @@ from rich.progress import (
     TimeElapsedColumn,
     TimeRemainingColumn,
 )
+from rich.style import Style
 from rich.table import Table
+from rich.text import Text
 from rich.theme import Theme
 
 __all__ = [
@@ -37,6 +43,7 @@ __all__ = [
     "err_console",
     "make_progress",
     "print_banner",
+    "print_compact_header",
     "print_findings_table",
 ]
 
@@ -139,7 +146,6 @@ def configure_logging(verbosity: int = 1, log_file: Path | None = None) -> None:
         jsonl = _JsonlHandler(level=logging.DEBUG)
         root.addHandler(jsonl)
 
-    # Silence noisy third-party loggers
     for noisy in ("scapy.runtime", "scapy.loading", "paramiko", "urllib3"):
         logging.getLogger(noisy).setLevel(logging.ERROR)
 
@@ -180,6 +186,43 @@ def make_progress(description: str = "Scanning") -> Progress:
     )
 
 
+# ─── Banner system (wifi_down-style) ─────────────────────────────────────────
+
+_RESET_ESC = "\033[0m"
+
+
+def _ansi(style_str: str) -> str:
+    """Convert space-separated style tokens to an ANSI escape sequence."""
+    codes: list[str] = []
+    for token in style_str.split():
+        if token == "bold":
+            codes.append("1")
+        elif token == "dim":
+            codes.append("2")
+        elif token == "italic":
+            codes.append("3")
+        elif token.startswith("color(") and token.endswith(")"):
+            n = token[6:-1]
+            codes.append(f"38;5;{n}")
+    return f"\033[{';'.join(codes)}m" if codes else ""
+
+
+def _raw_write(text: str) -> None:
+    """Write to stdout and flush immediately (single-stream, no buffer conflict)."""
+    sys.stdout.write(text)
+    sys.stdout.flush()
+
+
+def _typewrite(text: str, style: str = "", delay: float = 0.018, newline: bool = True) -> None:
+    """Print text character-by-character with optional ANSI style and delay."""
+    esc = _ansi(style) if style else ""
+    for char in text:
+        _raw_write(f"{esc}{char}{_RESET_ESC}" if esc else char)
+        time.sleep(delay)
+    if newline:
+        _raw_write("\n")
+
+
 def print_banner() -> None:
     """Print the toolkit banner with legal disclaimer."""
     banner = r"""
@@ -210,6 +253,21 @@ def print_banner() -> None:
     )
 
 
+def print_compact_header(target: str | None = None) -> None:
+    """One-line header shown at the top of each command run."""
+    ts    = datetime.now().strftime("%Y-%m-%d  %H:%M:%S")
+    label = target or "no target"
+    t = Text.assemble(
+        ("  recon-toolkit", Style(color="color(51)", bold=True)),
+        ("  ◈  ",       Style(color="color(238)")),
+        (ts,                Style(color="color(240)", dim=True)),
+        ("  ◈  ",       Style(color="color(238)")),
+        (label,             Style(color="color(87)")),
+    )
+    console.print(t)
+    console.print()
+
+
 def print_findings_table(findings: list[dict[str, Any]], title: str = "Findings") -> None:
     """
     Render a Rich table of scan findings with severity coloring.
@@ -232,14 +290,14 @@ def print_findings_table(findings: list[dict[str, Any]], title: str = "Findings"
 
     sev_styles = {
         "critical": "bold red",
-        "high": "red",
-        "medium": "yellow",
-        "low": "green",
-        "info": "cyan",
+        "high":     "red",
+        "medium":   "yellow",
+        "low":      "green",
+        "info":     "cyan",
     }
 
     for f in findings:
-        sev = f.get("severity", "info").lower()
+        sev   = f.get("severity", "info").lower()
         style = sev_styles.get(sev, "white")
         table.add_row(
             f"[{style}]{sev.upper()}[/{style}]",
