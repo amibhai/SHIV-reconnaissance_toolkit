@@ -15,8 +15,8 @@
 ╚══════════════════════════════════════════════════════════════════════╝
 
 Usage:
-    sudo python3 recon_menu.py        (root recommended)
-    python3 recon_menu.py             (non-root, reduced feature set)
+    sudo python3 menu.py        (root recommended)
+    python3 menu.py             (non-root, reduced feature set)
 """
 
 import sys
@@ -27,11 +27,10 @@ import threading
 import socket
 from datetime import datetime
 
-# ── Resolve sibling module imports ────────────────────────────────────────────
+# ── Path setup: SCRIPT_DIR is the project root (recon-toolkit/) ──────────────
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-ROOT_DIR   = os.path.dirname(SCRIPT_DIR)
-sys.path.insert(0, SCRIPT_DIR)
-sys.path.insert(0, ROOT_DIR)
+sys.path.insert(0, SCRIPT_DIR)                              # makes recon pkg importable
+sys.path.insert(0, os.path.join(SCRIPT_DIR, "tools"))      # makes standalone tools importable
 
 try:
     from recon.core.logger import print_banner as _full_banner, print_compact_header
@@ -357,7 +356,7 @@ def menu_dns_enum():
 
             wordlist = None
             if choice in ("1","4"):
-                wl_default = os.path.join(SCRIPT_DIR, "subdomains.txt")
+                wl_default = os.path.join(SCRIPT_DIR, "wordlists", "subdomains.txt")
                 wl = ask("Subdomain wordlist (Enter = built-in)", wl_default)
                 wordlist = wl if wl and os.path.exists(wl) else None
 
@@ -770,7 +769,7 @@ def menu_wireless():
 
     if os.name != "posix" or os.geteuid() != 0:
         warn("Monitor mode requires root on Linux.")
-        warn("Run with: sudo python3 recon_menu.py")
+        warn("Run with: sudo python3 menu.py")
         pause()
         return
 

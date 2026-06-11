@@ -257,20 +257,33 @@ class WirelessManager:
         return None
 
     def _kill_interfering_processes(self) -> None:
-        """Kill NetworkManager, wpa_supplicant, dhclient."""
-        procs = ["NetworkManager", "wpa_supplicant", "dhclient"]
-        for proc in procs:
+        """Kill processes that interfere with monitor mode (wifi_down approach)."""
+        # Method 1: airmon-ng check kill — handles all interfering processes at once
+        try:
+            subprocess.run(["airmon-ng", "check", "kill"],
+                           capture_output=True, timeout=10)
+            _log.debug("airmon-ng check kill completed")
+        except Exception:
+            pass
+        # Method 2: systemctl stop
+        for svc in ("NetworkManager", "wpa_supplicant"):
             try:
-                subprocess.run(["killall", proc], capture_output=True, timeout=5)
-                _log.debug("Killed %s", proc)
+                subprocess.run(["systemctl", "stop", svc],
+                               capture_output=True, timeout=5)
+            except Exception:
+                pass
+        # Method 3: pkill -9 for any remaining processes
+        for proc in ("NetworkManager", "wpa_supplicant", "dhclient"):
+            try:
+                subprocess.run(["pkill", "-9", proc],
+                               capture_output=True, timeout=5)
             except Exception:
                 pass
 
     def _airmon_enable(self, iface: str) -> str | None:
         try:
-            # Check airmon-ng availability
             subprocess.check_output(["airmon-ng", "--help"],
-                                     stderr=subprocess.DEVNULL, timeout=3)
+                                    stderr=subprocess.DEVNULL, timeout=3)
         except (FileNotFoundError, subprocess.SubprocessError):
             _log.debug("airmon-ng not found")
             return None
@@ -280,28 +293,89 @@ class WirelessManager:
                 ["airmon-ng", "start", iface],
                 stderr=subprocess.STDOUT, text=True, timeout=15,
             )
-            # Parse monitor interface name from output
-            m = re.search(r"monitor mode (?:vif )?enabled(?: for|on) \[?(\w+)\]?", out)
-            if m:
-                return m.group(1)
-            m = re.search(r"(\w+mon\d*|mon\d+)", out)
-            if m:
-                return m.group(1)
-            return f"{iface}mon"
+            # Multi-pattern parse (wifi_down approach)
+            monitor_iface = self._parse_airmon_output(out)
+            if monitor_iface and self._verify_monitor_mode(monitor_iface):
+                return monitor_iface
+            # Fallback: inspect iw dev for any new monitor-mode interfaces
+            candidates = self._get_monitor_ifaces_from_iw()
+            if candidates:
+                return candidates[0]
+            # Last resort: iface + "mon"
+            fallback = f"{iface}mon"
+            if self._verify_monitor_mode(fallback):
+                return fallback
+            return None
         except Exception as exc:
             _log.debug("airmon-ng enable failed: %s", exc)
             return None
 
+    @staticmethod
+    def _parse_airmon_output(out: str) -> str | None:
+        """Try multiple regex patterns to extract monitor interface from airmon-ng output."""
+        patterns = [
+            r"\(mac80211 monitor mode vif enabled for .+? on \[?(\w+mon\d*)\]?\)",
+            r"monitor mode (?:vif )?enabled(?: for|on) \[?(\w+)\]?",
+            r"monitor mode enabled on (\w+)",
+            r"(\w+mon\d*)\s+on\s+\[phy",
+            r"(\w+mon\d*)",
+            r"(mon\d+)",
+        ]
+        _skip = {"for", "on", "enabled", "mode", "monitor", "vif"}
+        for pattern in patterns:
+            m = re.search(pattern, out, re.IGNORECASE)
+            if m:
+                candidate = m.group(1)
+                if candidate.lower() not in _skip:
+                    return candidate
+        return None
+
+    def _get_monitor_ifaces_from_iw(self) -> list[str]:
+        """Return names of all interfaces currently in monitor mode per `iw dev`."""
+        try:
+            out = subprocess.check_output(
+                ["iw", "dev"], stderr=subprocess.DEVNULL, text=True, timeout=5
+            )
+            ifaces: list[str] = []
+            current = ""
+            for line in out.splitlines():
+                line = line.strip()
+                m = re.match(r"Interface\s+(\S+)", line)
+                if m:
+                    current = m.group(1)
+                if re.search(r"type\s+monitor", line, re.IGNORECASE) and current:
+                    ifaces.append(current)
+            return ifaces
+        except Exception:
+            return []
+
+    def _verify_monitor_mode(self, iface: str) -> bool:
+        """Return True if the interface is confirmed to be in monitor mode."""
+        return self.get_interface_mode(iface) == "monitor"
+
+    def get_monitor_interface(self) -> str | None:
+        """
+        Return the active monitor-mode interface name.
+
+        Checks the internal tracker first, then falls back to live `iw dev` output.
+        """
+        if self._monitor_ifaces:
+            return self._monitor_ifaces[0]
+        live = self._get_monitor_ifaces_from_iw()
+        return live[0] if live else None
+
     def _iw_enable_monitor(self, iface: str) -> str | None:
-        monitor_iface = f"{iface}mon"
         try:
             subprocess.run(["ip", "link", "set", iface, "down"],
                            check=True, capture_output=True, timeout=5)
-            subprocess.run(["iw", "dev", iface, "set", "monitor", "control"],
+            # Correct iw command: set type monitor (not "set monitor control")
+            subprocess.run(["iw", "dev", iface, "set", "type", "monitor"],
                            check=True, capture_output=True, timeout=5)
             subprocess.run(["ip", "link", "set", iface, "up"],
                            check=True, capture_output=True, timeout=5)
-            return iface  # iface itself is now in monitor mode
+            if self._verify_monitor_mode(iface):
+                return iface
+            return None
         except Exception as exc:
             _log.debug("Manual iw monitor failed: %s", exc)
         return None

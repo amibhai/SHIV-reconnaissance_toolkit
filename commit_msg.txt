@@ -1,0 +1,26 @@
+Update wireless modules and menu following wifi_down approach
+
+_kill_interfering_processes — replaced killall loop with the wifi_down 3-stage approach: airmon-ng check kill → systemctl stop NetworkManager wpa_supplicant → pkill -9 for any survivors
+_iw_enable_monitor — fixed the broken command: iw dev <iface> set monitor control → iw dev <iface> set type monitor, and added _verify_monitor_mode() confirmation before returning
+_airmon_enable — replaced single fragile regex with _parse_airmon_output() (6 patterns), then falls back to _get_monitor_ifaces_from_iw(), then tries <iface>mon with verification
+
+New methods added:
+_parse_airmon_output(out) — tries 6 progressive regex patterns (matching wifi_down's approach), skips false-positive keywords
+_get_monitor_ifaces_from_iw() — scans live iw dev output for any interfaces in monitor mode
+_verify_monitor_mode(iface) — delegates to existing get_interface_mode() and checks for "monitor"
+get_monitor_interface() — checks _monitor_ifaces tracker first, then falls back to live iw scan
+
+tools/recon_menu.py (wireless section)
+Import fixed: from recon.modules.wireless import WirelessManager
+Choice 2 (List interfaces): for iface, info_dict in ifaces.items() → for iface_info in ifaces (list of dicts, not dict)
+Choice 3 (Enable on specific): list(ifaces.keys())[0] → ifaces[0]["name"]
+Choice 1 (Auto-setup): disable_monitor_mode() → disable_monitor_mode(wm.get_monitor_interface() or monitor)
+Choice 4 (Disable): disable_monitor_mode() → disable_monitor_mode(wm.get_monitor_interface() or "wlan0mon")
+Choice 5 (Channel hop): raw comma-sep channel numbers → band selection prompt (2.4ghz / 5ghz / both), passes bands list to hop_channels()
+
+menu.py (new file at project root)
+SCRIPT_DIR = project root (no separate ROOT_DIR)
+sys.path gets both SCRIPT_DIR (so recon package works) and tools/ (so standalone tool imports still resolve)
+Wireless section: from recon.modules.wireless import WirelessManager + all 6 fixes above applied
+Wordlist default path: wordlists/subdomains.txt relative to project root
+Run with: sudo python3 menu.py
