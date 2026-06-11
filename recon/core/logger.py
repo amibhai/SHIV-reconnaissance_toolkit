@@ -188,7 +188,66 @@ def make_progress(description: str = "Scanning") -> Progress:
 
 # ─── Banner system (wifi_down-style) ─────────────────────────────────────────
 
+RECON_ART = """\
+██████╗ ███████╗ ██████╗ ██████╗ ███╗   ██╗
+██╔══██╗██╔════╝██╔════╝██╔═══██╗████╗  ██║
+██████╔╝█████╗  ██║     ██║   ██║██╔██╗ ██║
+██╔══██╗██╔══╝  ██║     ██║   ██║██║╚██╗██║
+██║  ██║███████╗╚██████╗╚██████╔╝██║ ╚████║
+╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═════╝╚═╝  ╚═══╝"""
+
+QUOTES = [
+    (
+        "Kevin Mitnick",
+        "The human side of computer security is easily exploited "
+        "and we still don't take it seriously enough.",
+    ),
+    ("Bruce Schneier", "Security is not a product, but a process."),
+    ("Bruce Schneier", "Amateurs hack systems, professionals hack people."),
+    (
+        "Dan Kaminsky",
+        "We keep saying the internet isn't a safe place. "
+        "But we built it as if it was.",
+    ),
+    ("Mikko Hyppönen", "If it's smart, it's vulnerable."),
+    (
+        "Edward Snowden",
+        "Arguing that you don't care about privacy because you have "
+        "nothing to hide is no different from saying you don't care "
+        "about free speech because you have nothing to say.",
+    ),
+    ("Richard Stallman", "Free software is a matter of liberty, not price."),
+    (
+        "Gene Spafford",
+        "The only truly secure system is one that is powered off, "
+        "cast in a block of concrete and sealed in a lead-lined room "
+        "with armed guards.",
+    ),
+    (
+        "Parisa Tabriz",
+        "I think of hacking as an intellectual challenge — "
+        "a puzzle waiting to be solved.",
+    ),
+]
+
+_CORNER_CHARS = frozenset("╗╔╝╚╣╠╦╩╬")
+
+_S_LEFT   = Style(color="color(51)")
+_S_MID    = Style(color="color(87)", bold=True)
+_S_RIGHT  = Style(color="color(50)")
+_S_CORNER = Style(color="color(45)", bold=True)
+
 _RESET_ESC = "\033[0m"
+
+
+def _make_banner_console() -> Console:
+    """Create a console pointing at the (possibly reconfigured) stdout."""
+    try:
+        if hasattr(sys.stdout, "reconfigure"):
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+    return Console(file=sys.stdout, force_terminal=True, legacy_windows=False)
 
 
 def _ansi(style_str: str) -> str:
