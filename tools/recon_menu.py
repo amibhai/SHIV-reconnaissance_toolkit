@@ -859,6 +859,142 @@ def menu_wireless():
 
 
 # ═════════════════════════════════════════════════════════════════════════════
+# ADVANCED TOOL MENUS (shared with menu.py — thin wrappers using recon.modules)
+# ═════════════════════════════════════════════════════════════════════════════
+
+def menu_http_probe():
+    """HTTP/web probe — delegates to recon.modules.http_probe."""
+    import importlib, sys as _sys
+    # Ensure recon package is importable from tools/
+    _root = os.path.dirname(SCRIPT_DIR)
+    if _root not in _sys.path:
+        _sys.path.insert(0, _root)
+    # Import and run the same function from menu.py logic inline
+    banner()
+    hdr("HTTP / Web Probe",
+        "WAF · CDN · tech stack · security headers · path discovery · method enum")
+    target  = ask("Target hostname / IP", "192.168.1.100")
+    port_s  = ask("Port (80/443/8080/…)", "80")
+    port    = int(port_s) if port_s.isdigit() else 80
+    use_ssl = port == 443 or ask("HTTPS? (y/n)", "n").lower() == "y"
+    try:
+        from recon.modules.http_probe import HTTPProbe
+        probe = HTTPProbe(target, port=port, use_ssl=use_ssl)
+        fp = probe.probe_all(path_discovery=True)
+        probe.print_results(fp)
+    except ImportError as ex:
+        err(f"Could not import http_probe: {ex}")
+    except KeyboardInterrupt:
+        warn("Interrupted.")
+    pause()
+
+
+def menu_tls_probe():
+    """TLS deep scan — delegates to recon.modules.tls_probe."""
+    import sys as _sys
+    _root = os.path.dirname(SCRIPT_DIR)
+    if _root not in _sys.path:
+        _sys.path.insert(0, _root)
+    banner()
+    hdr("TLS / SSL Deep Scan",
+        "Cipher enum · cert chain · JA3S fingerprint · CT log discovery")
+    target = ask("Target hostname / IP", "192.168.1.100")
+    port   = ask_int("Port", 443, 1, 65535)
+    ct     = ask("Query crt.sh CT logs? (y/n)", "n").lower() == "y"
+    try:
+        from recon.modules.tls_probe import TLSProbe
+        probe = TLSProbe(target, port=port)
+        r = probe.scan_all(ct=ct)
+        probe.print_results(r)
+    except ImportError as ex:
+        err(f"Could not import tls_probe: {ex}")
+    except KeyboardInterrupt:
+        warn("Interrupted.")
+    pause()
+
+
+def menu_smb_enum():
+    """SMB enumeration — delegates to recon.modules.smb_enum."""
+    import sys as _sys
+    _root = os.path.dirname(SCRIPT_DIR)
+    if _root not in _sys.path:
+        _sys.path.insert(0, _root)
+    banner()
+    hdr("SMB / NetBIOS Enumeration",
+        "Dialect · signing · shares · EternalBlue · SMBGhost pre-checks")
+    target = ask("Target IP / hostname", "192.168.1.100")
+    try:
+        from recon.modules.smb_enum import SMBEnumerator
+        enum = SMBEnumerator(target)
+        r = enum.enumerate_all()
+        enum.print_results(r)
+    except ImportError as ex:
+        err(f"Could not import smb_enum: {ex}")
+    except KeyboardInterrupt:
+        warn("Interrupted.")
+    pause()
+
+
+def menu_snmp_enum():
+    """SNMP enumeration — delegates to recon.modules.snmp_enum."""
+    import sys as _sys
+    _root = os.path.dirname(SCRIPT_DIR)
+    if _root not in _sys.path:
+        _sys.path.insert(0, _root)
+    banner()
+    hdr("SNMP Enumeration",
+        "Community brute-force · sysInfo · interfaces · ARP · routes · processes")
+    target    = ask("Target IP / hostname", "192.168.1.1")
+    port      = ask_int("SNMP port", 161, 1, 65535)
+    community = ask("Community string (Enter = auto-brute)", "")
+    try:
+        from recon.modules.snmp_enum import SNMPEnumerator
+        enum = SNMPEnumerator(target, port=port)
+        r = enum.enumerate_all(community=community if community else None, deep=True)
+        enum.print_results(r)
+    except ImportError as ex:
+        err(f"Could not import snmp_enum: {ex}")
+    except KeyboardInterrupt:
+        warn("Interrupted.")
+    pause()
+
+
+def menu_async_scan():
+    """Async fast scan — delegates to recon.modules.async_scan."""
+    import sys as _sys
+    _root = os.path.dirname(SCRIPT_DIR)
+    if _root not in _sys.path:
+        _sys.path.insert(0, _root)
+    banner()
+    hdr("Async Fast Scan  [masscan-speed]",
+        "Asyncio connect scan · 10k–50k ports/s · banner grab · network sweep")
+    target  = ask("Target IP / hostname / CIDR", "192.168.1.100")
+    ports   = ask("Port spec (top100/top1000/all/1-1024/custom)", "top1000")
+    concurr = ask_int("Concurrency", 5000, 100, 50000)
+    timeout = ask_float("Timeout per port (s)", 0.5)
+    banners = ask("Grab banners? (y/n)", "y").lower() == "y"
+    try:
+        from recon.modules.async_scan import AsyncScanner
+        scanner = AsyncScanner(target, concurrency=concurr,
+                               timeout=timeout, grab_banners=banners)
+        if "/" in target:
+            results = scanner.scan_network(target, ports=ports, per_host_concurrency=concurr)
+            live = [(h, r) for h, r in results.items() if r.open_ports]
+            ok(f"{len(live)} host(s) with open ports:")
+            for host, r in sorted(live):
+                ports_str = ", ".join(f"{p.port}/{p.service}" for p in r.open_ports[:8])
+                ok(f"  {host:<18} {ports_str}")
+        else:
+            r = scanner.scan(ports=ports)
+            scanner.print_results(r)
+    except ImportError as ex:
+        err(f"Could not import async_scan: {ex}")
+    except KeyboardInterrupt:
+        warn("Interrupted.")
+    pause()
+
+
+# ═════════════════════════════════════════════════════════════════════════════
 # MAIN MENU
 # ═════════════════════════════════════════════════════════════════════════════
 
@@ -877,7 +1013,7 @@ def main_menu():
         print()
 
         # Menu items
-        print(f"  {C.BOLD}RECONNAISSANCE TOOLS{C.R}\n")
+        print(f"  {C.BOLD}CORE RECONNAISSANCE{C.R}\n")
         print(f"  {C.CYN}1.{C.R}  DNS Enumeration      "
               f"{C.DIM}zone transfer · records · subdomain brute{C.R}")
         print(f"  {C.CYN}2.{C.R}  Host Discovery       "
@@ -892,6 +1028,18 @@ def main_menu():
               f"{C.DIM}CVE DB · SSL audit · default creds{C.R}")
         print(f"  {C.CYN}7.{C.R}  Wireless Adapter     "
               f"{C.DIM}monitor mode · channel hopping{C.R}")
+        print()
+        print(f"  {C.BOLD}ADVANCED MODULES{C.R}\n")
+        print(f"  {C.CYN}8.{C.R}  HTTP / Web Probe     "
+              f"{C.DIM}WAF · CDN · tech stack · headers · path discovery{C.R}")
+        print(f"  {C.CYN}9.{C.R}  TLS / SSL Deep Scan  "
+              f"{C.DIM}ciphers · cert chain · JA3S · CT logs{C.R}")
+        print(f"  {C.CYN}A.{C.R}  SMB Enumeration      "
+              f"{C.DIM}NetBIOS · dialect · signing · EternalBlue · SMBGhost{C.R}")
+        print(f"  {C.CYN}B.{C.R}  SNMP Enumeration     "
+              f"{C.DIM}community brute · sysInfo · interfaces · ARP · routes{C.R}")
+        print(f"  {C.CYN}F.{C.R}  {C.BOLD}Async Fast Scan{C.R}      "
+              f"{C.DIM}10k–50k ports/s · asyncio · no root required{C.R}")
         print()
         print(f"  {C.CYN}P.{C.R}  PCAP Settings        "
               f"{'  ' + C.GRN + '● capture ON' + C.R if _pcap_enabled else '  ' + C.DIM + '○ capture OFF' + C.R}")
@@ -911,9 +1059,14 @@ def main_menu():
         elif choice == "5": menu_port_scan()
         elif choice == "6": menu_vuln_scan()
         elif choice == "7": menu_wireless()
+        elif choice == "8": menu_http_probe()
+        elif choice == "9": menu_tls_probe()
+        elif choice == "a": menu_smb_enum()
+        elif choice == "b": menu_snmp_enum()
+        elif choice == "f": menu_async_scan()
         elif choice == "p": menu_pcap_settings()
         else:
-            warn("Enter 1–7, P, or 0")
+            warn("Enter 1–9, A, B, F, P, or 0")
             time.sleep(0.8)
 
 

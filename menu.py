@@ -858,6 +858,448 @@ def menu_wireless():
 
 
 # ═════════════════════════════════════════════════════════════════════════════
+# TOOL 8 — HTTP / WEB PROBE
+# ═════════════════════════════════════════════════════════════════════════════
+
+def menu_http_probe():
+    while True:
+        banner()
+        hdr("HTTP / Web Probe",
+            "WAF · CDN · tech stack · security headers · path discovery · method enum")
+        print(_pcap_status())
+        print()
+        print(f"  {C.CYN}1.{C.R}  Full probe          — all checks combined")
+        print(f"  {C.CYN}2.{C.R}  WAF / CDN detection — identify firewall and CDN provider")
+        print(f"  {C.CYN}3.{C.R}  Tech stack          — CMS · framework · server · JS libs")
+        print(f"  {C.CYN}4.{C.R}  Security headers    — HSTS · CSP · X-Frame · cookie flags")
+        print(f"  {C.CYN}5.{C.R}  Path discovery      — admin panels · APIs · config leaks")
+        print(f"  {C.CYN}6.{C.R}  HTTP method enum    — OPTIONS/PUT/DELETE/TRACE")
+        print(f"  {C.CYN}0.{C.R}  Back")
+        print()
+        choice = ask("Select", "0")
+
+        if choice == "0":
+            break
+
+        elif choice in ("1","2","3","4","5","6"):
+            target  = ask("Target hostname / IP", "192.168.1.100")
+            port_s  = ask("Port (80/443/8080/…)", "80")
+            port    = int(port_s) if port_s.isdigit() else 80
+            use_ssl = port == 443 or ask("HTTPS? (y/n)", "n").lower() == "y"
+
+            was_temp = _maybe_start_pcap("HTTP_Probe")
+            try:
+                from recon.modules.http_probe import HTTPProbe
+                probe = HTTPProbe(target, port=port, use_ssl=use_ssl)
+
+                if choice == "1":
+                    fp = probe.probe_all(path_discovery=True)
+                    probe.print_results(fp)
+
+                elif choice == "2":
+                    code, hdrs, body = probe._get("/")
+                    waf = probe.detect_waf(code, hdrs, body, hdrs.get("set-cookie",""))
+                    cdn = probe.detect_cdn(hdrs)
+                    ok(f"WAF: {waf or 'none detected'}")
+                    ok(f"CDN: {cdn or 'none detected'}")
+
+                elif choice == "3":
+                    code, hdrs, body = probe._get("/")
+                    techs = probe.fingerprint_tech(hdrs, body, "")
+                    ok(f"Technologies: {', '.join(techs) if techs else 'none detected'}")
+
+                elif choice == "4":
+                    code, hdrs, body = probe._get("/")
+                    issues = probe.audit_security_headers(hdrs, probe.scheme)
+                    if issues:
+                        for i in issues:
+                            warn(f"[{i['severity']}] {i['header']}: {i['issue']}")
+                    else:
+                        ok("All security headers present")
+
+                elif choice == "5":
+                    info("Scanning sensitive paths (this may take a moment)…")
+                    found = probe.discover_paths()
+                    for p in found:
+                        fn = ok if p["status"] == 200 else warn
+                        fn(f"[{p['severity']}] {p['status']} {p['path']} — {p['description']}")
+                    if not found:
+                        ok("No interesting paths found")
+
+                elif choice == "6":
+                    methods = probe.enumerate_methods()
+                    ok(f"Allowed methods: {', '.join(methods) or 'unable to determine'}")
+
+            except ImportError as ex:
+                err(f"Could not import http_probe: {ex}")
+            except KeyboardInterrupt:
+                warn("Interrupted.")
+            finally:
+                _stop_pcap(was_temp)
+            pause()
+        else:
+            warn("Enter 1–6 or 0")
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# TOOL 9 — TLS / SSL DEEP SCAN
+# ═════════════════════════════════════════════════════════════════════════════
+
+def menu_tls_probe():
+    while True:
+        banner()
+        hdr("TLS / SSL Deep Scan",
+            "Cipher enumeration · cert chain · JA3S fingerprint · CT log discovery")
+        print(_pcap_status())
+        print()
+        print(f"  {C.CYN}1.{C.R}  Full TLS scan       — all checks")
+        print(f"  {C.CYN}2.{C.R}  Certificate info    — subject · SANs · expiry · key size")
+        print(f"  {C.CYN}3.{C.R}  Protocol versions   — TLS 1.0/1.1/1.2/1.3 support matrix")
+        print(f"  {C.CYN}4.{C.R}  Cipher suites       — broken / weak / strong cipher audit")
+        print(f"  {C.CYN}5.{C.R}  CT log lookup       — enumerate subdomains via crt.sh")
+        print(f"  {C.CYN}0.{C.R}  Back")
+        print()
+        choice = ask("Select", "0")
+
+        if choice == "0":
+            break
+
+        elif choice in ("1","2","3","4","5"):
+            target = ask("Target hostname / IP", "192.168.1.100")
+            port   = ask_int("Port", 443, 1, 65535)
+
+            try:
+                from recon.modules.tls_probe import TLSProbe
+                probe = TLSProbe(target, port=port)
+
+                if choice == "1":
+                    ct = ask("Query crt.sh CT logs? (y/n)", "n").lower() == "y"
+                    r = probe.scan_all(ct=ct)
+                    probe.print_results(r)
+
+                elif choice == "2":
+                    ci = probe.extract_cert()
+                    ok(f"Subject:    {ci.subject}")
+                    ok(f"Issuer:     {ci.issuer}")
+                    ok(f"Expires:    {ci.not_after} ({ci.days_remaining}d remaining)")
+                    ok(f"Key:        {ci.key_type} {ci.key_bits}-bit")
+                    ok(f"SHA-256:    {ci.fingerprint_sha256[:32]}…")
+                    if ci.san:
+                        info(f"SANs: {', '.join(ci.san[:10])}")
+                    if ci.expired:
+                        err("Certificate is EXPIRED!")
+                    if ci.self_signed:
+                        warn("Self-signed certificate")
+
+                elif choice == "3":
+                    probe.probe_protocol_versions()
+                    ok(f"Supported: {', '.join(probe._result.protocols_supported) or 'none'}")
+                    warn(f"Rejected:  {', '.join(probe._result.protocols_rejected) or 'none'}")
+
+                elif choice == "4":
+                    probe.enumerate_ciphers()
+                    if probe._result.broken_ciphers_found:
+                        err(f"BROKEN: {', '.join(probe._result.broken_ciphers_found)}")
+                    if probe._result.weak_ciphers_found:
+                        warn(f"Weak:   {', '.join(probe._result.weak_ciphers_found)}")
+                    strong = [c for c in probe._result.supported_ciphers
+                              if c not in probe._result.broken_ciphers_found
+                              and c not in probe._result.weak_ciphers_found]
+                    if strong:
+                        ok(f"Strong: {', '.join(strong[:5])}")
+
+                elif choice == "5":
+                    parts = target.split(".")
+                    apex  = ".".join(parts[-2:]) if len(parts) >= 2 else target
+                    info(f"Querying crt.sh for *.{apex} …")
+                    from recon.modules.tls_probe import TLSProbe
+                    domains = probe.ct_lookup(apex)
+                    ok(f"{len(domains)} domain(s) found in CT logs")
+                    for d in domains[:30]:
+                        info(d)
+                    if len(domains) > 30:
+                        info(f"… and {len(domains)-30} more")
+
+            except ImportError as ex:
+                err(f"Could not import tls_probe: {ex}")
+            except KeyboardInterrupt:
+                warn("Interrupted.")
+            pause()
+        else:
+            warn("Enter 1–5 or 0")
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# TOOL 10 — SMB ENUMERATION
+# ═════════════════════════════════════════════════════════════════════════════
+
+def menu_smb_enum():
+    while True:
+        banner()
+        hdr("SMB / NetBIOS Enumeration",
+            "Dialect · signing · shares · EternalBlue pre-check · SMBGhost pre-check")
+        print(_pcap_status())
+        print()
+        print(f"  {C.CYN}1.{C.R}  Full SMB enum       — all checks")
+        print(f"  {C.CYN}2.{C.R}  NetBIOS names       — hostname · domain · MAC via UDP 137")
+        print(f"  {C.CYN}3.{C.R}  Dialect + signing   — SMBv1/v2/v3 detection")
+        print(f"  {C.CYN}4.{C.R}  Share enumeration   — null session share list")
+        print(f"  {C.CYN}5.{C.R}  Vuln pre-checks     — EternalBlue · SMBGhost")
+        print(f"  {C.CYN}0.{C.R}  Back")
+        print()
+        choice = ask("Select", "0")
+
+        if choice == "0":
+            break
+
+        elif choice in ("1","2","3","4","5"):
+            target = ask("Target IP / hostname", "192.168.1.100")
+
+            was_temp = _maybe_start_pcap("SMB_Enum")
+            try:
+                from recon.modules.smb_enum import SMBEnumerator
+                enum = SMBEnumerator(target)
+
+                if choice == "1":
+                    r = enum.enumerate_all()
+                    enum.print_results(r)
+
+                elif choice == "2":
+                    nb = enum.query_netbios()
+                    if nb:
+                        ok(f"Hostname: {nb.get('hostname','?')}")
+                        ok(f"Domain:   {nb.get('domain','?')}")
+                        ok(f"MAC:      {nb.get('mac','?')}")
+                        for n in nb.get("names", []):
+                            info(f"  {n['name']:<20} type={n['type']}  group={n['group']}")
+                    else:
+                        warn("No NetBIOS response")
+
+                elif choice == "3":
+                    r = enum.enumerate_all(check_vulns=False)
+                    ok(f"Dialect: {r.smb_dialect or 'unknown'}")
+                    ok(f"Signing: {r.smb_signing or 'unknown'}")
+
+                elif choice == "4":
+                    shares = enum.enumerate_shares()
+                    if shares:
+                        for s in shares:
+                            ok(f"  {s['name']:<20} [{s['type']}]  {s.get('comment','')}")
+                    else:
+                        warn("No shares found (or smbclient not installed)")
+
+                elif choice == "5":
+                    eb = enum.check_eternalblue()
+                    sg = enum.check_smbghost()
+                    fn = err if "vulnerable" in eb.lower() else ok
+                    fn(f"EternalBlue: {eb}")
+                    fn2 = warn if "3.1.1" in sg.lower() else ok
+                    fn2(f"SMBGhost:    {sg}")
+
+            except ImportError as ex:
+                err(f"Could not import smb_enum: {ex}")
+            except KeyboardInterrupt:
+                warn("Interrupted.")
+            finally:
+                _stop_pcap(was_temp)
+            pause()
+        else:
+            warn("Enter 1–5 or 0")
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# TOOL 11 — SNMP ENUMERATION
+# ═════════════════════════════════════════════════════════════════════════════
+
+def menu_snmp_enum():
+    while True:
+        banner()
+        hdr("SNMP Enumeration",
+            "Community brute-force · sysInfo · interfaces · ARP · routes · processes")
+        print(_pcap_status())
+        print()
+        print(f"  {C.CYN}1.{C.R}  Full enumeration    — brute-force + all MIB walks")
+        print(f"  {C.CYN}2.{C.R}  Community brute-force only")
+        print(f"  {C.CYN}3.{C.R}  System info         — sysDescr · sysName · location")
+        print(f"  {C.CYN}4.{C.R}  Interface + ARP     — interfaces · IP addresses · ARP table")
+        print(f"  {C.CYN}5.{C.R}  Process / software  — running processes · installed software")
+        print(f"  {C.CYN}0.{C.R}  Back")
+        print()
+        choice = ask("Select", "0")
+
+        if choice == "0":
+            break
+
+        elif choice in ("1","2","3","4","5"):
+            target    = ask("Target IP / hostname", "192.168.1.1")
+            port      = ask_int("SNMP port", 161, 1, 65535)
+            community = ask("Community string (Enter = auto-brute)", "")
+
+            was_temp = _maybe_start_pcap("SNMP_Enum")
+            try:
+                from recon.modules.snmp_enum import SNMPEnumerator
+                enum = SNMPEnumerator(target, port=port)
+
+                comm = community if community else None
+
+                if choice == "1":
+                    r = enum.enumerate_all(community=comm, deep=True)
+                    enum.print_results(r)
+
+                elif choice == "2":
+                    found = enum.brute_community()
+                    if found:
+                        ok(f"Community: {found}")
+                    else:
+                        err("No valid community found")
+
+                elif choice == "3":
+                    if not comm:
+                        comm = enum.brute_community()
+                    if comm:
+                        enum.get_system_info(comm)
+                        r = enum._result
+                        ok(f"sysName:    {r.sys_name}")
+                        ok(f"sysDescr:   {r.sys_descr[:100]}")
+                        ok(f"Location:   {r.sys_location}")
+                        ok(f"Contact:    {r.sys_contact}")
+                        ok(f"Uptime:     {r.sys_uptime}")
+                    else:
+                        err("No valid community string")
+
+                elif choice == "4":
+                    if not comm:
+                        comm = enum.brute_community()
+                    if comm:
+                        enum.get_interfaces(comm)
+                        enum.get_ip_addresses(comm)
+                        enum.get_arp_table(comm)
+                        enum.print_results(enum._result)
+                    else:
+                        err("No valid community string")
+
+                elif choice == "5":
+                    if not comm:
+                        comm = enum.brute_community()
+                    if comm:
+                        enum.get_processes(comm)
+                        enum.get_software(comm)
+                        r = enum._result
+                        ok(f"Processes ({len(r.processes)}): {', '.join(r.processes[:10])}")
+                        ok(f"Software  ({len(r.software)}):  {', '.join(r.software[:10])}")
+                    else:
+                        err("No valid community string")
+
+            except ImportError as ex:
+                err(f"Could not import snmp_enum: {ex}")
+            except KeyboardInterrupt:
+                warn("Interrupted.")
+            finally:
+                _stop_pcap(was_temp)
+            pause()
+        else:
+            warn("Enter 1–5 or 0")
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# TOOL 12 — ASYNC FAST SCAN (masscan-speed)
+# ═════════════════════════════════════════════════════════════════════════════
+
+def menu_async_scan():
+    while True:
+        banner()
+        hdr("Async Fast Scan  [masscan-speed]",
+            "Asyncio connect scan · 10k–50k ports/s · banner grab · network sweep")
+        print(_pcap_status())
+        print()
+        print(f"  {C.CYN}1.{C.R}  Single host scan    — port range / preset + banners")
+        print(f"  {C.CYN}2.{C.R}  Network sweep       — CIDR, top-100 ports per host")
+        print(f"  {C.CYN}3.{C.R}  Full port blast     — all 65535 ports, no banners (fastest)")
+        print()
+        print(f"  {C.DIM}  Port presets: top100 · top1000 · top10000 · all · 1-1024 · 80,443,8080{C.R}")
+        print()
+        print(f"  {C.CYN}0.{C.R}  Back")
+        print()
+        choice = ask("Select", "0")
+
+        if choice == "0":
+            break
+
+        elif choice == "1":
+            target  = ask("Target IP / hostname", "192.168.1.100")
+            ports   = ask("Port spec", "top1000")
+            concurr = ask_int("Concurrency (connections/s)", 5000, 100, 50000)
+            timeout = ask_float("Timeout per port (s)", 0.5)
+            banners = ask("Grab banners on open ports? (y/n)", "y").lower() == "y"
+
+            was_temp = _maybe_start_pcap("Async_Scan")
+            try:
+                from recon.modules.async_scan import AsyncScanner
+                scanner = AsyncScanner(target, concurrency=concurr,
+                                       timeout=timeout, grab_banners=banners)
+                r = scanner.scan(ports=ports)
+                scanner.print_results(r)
+            except ImportError as ex:
+                err(f"Could not import async_scan: {ex}")
+            except KeyboardInterrupt:
+                warn("Interrupted.")
+            finally:
+                _stop_pcap(was_temp)
+            pause()
+
+        elif choice == "2":
+            cidr    = ask("Target CIDR", "192.168.1.0/24")
+            ports   = ask("Port spec", "top100")
+            concurr = ask_int("Concurrency per host", 500, 50, 5000)
+            timeout = ask_float("Timeout per port (s)", 0.3)
+
+            was_temp = _maybe_start_pcap("Network_Sweep")
+            try:
+                from recon.modules.async_scan import AsyncScanner
+                scanner = AsyncScanner(cidr, concurrency=concurr,
+                                       timeout=timeout, grab_banners=False)
+                results = scanner.scan_network(
+                    cidr, ports=ports, per_host_concurrency=concurr
+                )
+                live = [(h, r) for h, r in results.items() if r.open_ports]
+                ok(f"{len(live)} host(s) with open ports:")
+                for host, r in sorted(live):
+                    port_strs = [f"{p.port}/{p.service}" for p in r.open_ports[:8]]
+                    ok(f"  {host:<18} {', '.join(port_strs)}")
+            except ImportError as ex:
+                err(f"Could not import async_scan: {ex}")
+            except KeyboardInterrupt:
+                warn("Interrupted.")
+            finally:
+                _stop_pcap(was_temp)
+            pause()
+
+        elif choice == "3":
+            target  = ask("Target IP / hostname", "192.168.1.100")
+            concurr = ask_int("Concurrency", 10000, 1000, 50000)
+            timeout = ask_float("Timeout per port (s)", 0.3)
+
+            was_temp = _maybe_start_pcap("Full_Port_Blast")
+            try:
+                from recon.modules.async_scan import AsyncScanner
+                scanner = AsyncScanner(target, concurrency=concurr,
+                                       timeout=timeout, grab_banners=False)
+                info("Scanning all 65535 ports — this may take 30–120 seconds…")
+                r = scanner.scan(ports="all")
+                scanner.print_results(r)
+            except ImportError as ex:
+                err(f"Could not import async_scan: {ex}")
+            except KeyboardInterrupt:
+                warn("Interrupted.")
+            finally:
+                _stop_pcap(was_temp)
+            pause()
+
+        else:
+            warn("Enter 1–3 or 0")
+
+
+# ═════════════════════════════════════════════════════════════════════════════
 # MAIN MENU
 # ═════════════════════════════════════════════════════════════════════════════
 
@@ -876,7 +1318,7 @@ def main_menu():
         print()
 
         # Menu items
-        print(f"  {C.BOLD}RECONNAISSANCE TOOLS{C.R}\n")
+        print(f"  {C.BOLD}CORE RECONNAISSANCE{C.R}\n")
         print(f"  {C.CYN}1.{C.R}  DNS Enumeration      "
               f"{C.DIM}zone transfer · records · subdomain brute{C.R}")
         print(f"  {C.CYN}2.{C.R}  Host Discovery       "
@@ -891,6 +1333,18 @@ def main_menu():
               f"{C.DIM}CVE DB · SSL audit · default creds{C.R}")
         print(f"  {C.CYN}7.{C.R}  Wireless Adapter     "
               f"{C.DIM}monitor mode · channel hopping{C.R}")
+        print()
+        print(f"  {C.BOLD}ADVANCED MODULES{C.R}\n")
+        print(f"  {C.CYN}8.{C.R}  HTTP / Web Probe     "
+              f"{C.DIM}WAF · CDN · tech stack · headers · path discovery{C.R}")
+        print(f"  {C.CYN}9.{C.R}  TLS / SSL Deep Scan  "
+              f"{C.DIM}ciphers · cert chain · JA3S · CT logs{C.R}")
+        print(f"  {C.CYN}A.{C.R}  SMB Enumeration      "
+              f"{C.DIM}NetBIOS · dialect · signing · EternalBlue · SMBGhost{C.R}")
+        print(f"  {C.CYN}B.{C.R}  SNMP Enumeration     "
+              f"{C.DIM}community brute · sysInfo · interfaces · ARP · routes{C.R}")
+        print(f"  {C.CYN}F.{C.R}  {C.BOLD}Async Fast Scan{C.R}      "
+              f"{C.DIM}10k–50k ports/s · asyncio · no root required{C.R}")
         print()
         print(f"  {C.CYN}P.{C.R}  PCAP Settings        "
               f"{'  ' + C.GRN + '● capture ON' + C.R if _pcap_enabled else '  ' + C.DIM + '○ capture OFF' + C.R}")
@@ -910,9 +1364,14 @@ def main_menu():
         elif choice == "5": menu_port_scan()
         elif choice == "6": menu_vuln_scan()
         elif choice == "7": menu_wireless()
+        elif choice == "8": menu_http_probe()
+        elif choice == "9": menu_tls_probe()
+        elif choice == "a": menu_smb_enum()
+        elif choice == "b": menu_snmp_enum()
+        elif choice == "f": menu_async_scan()
         elif choice == "p": menu_pcap_settings()
         else:
-            warn("Enter 1–7, P, or 0")
+            warn("Enter 1–9, A, B, F, P, or 0")
             time.sleep(0.8)
 
 
