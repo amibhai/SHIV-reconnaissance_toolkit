@@ -4,6 +4,21 @@ All notable changes to Recon Toolkit are documented here.
 
 ---
 
+## [2.1.0] — 2026-06-12
+
+### Added
+- **Advanced Recon Modules**
+  - `http_probe.py` — WAF/CDN/tech fingerprint, security headers, path discovery
+  - `tls_probe.py` — Cipher enum, cert chain, JA3S, CT logs
+  - `smb_enum.py` — NetBIOS, dialect negotiation, EternalBlue/SMBGhost pre-checks
+  - `snmp_enum.py` — Community brute, sysInfo, ARP, routes, process list
+  - `async_scan.py` — 10k–50k ports/s asyncio scanner, no root required
+- **Menu System Updates**
+  - Updated `menu.py` and `tools/recon_menu.py` to include the 5 new advanced modules
+  - Separated menu into "CORE RECONNAISSANCE" and "ADVANCED MODULES" sections
+
+---
+
 ## [2.0.1] — 2026-06-12
 
 ### Added

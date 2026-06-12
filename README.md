@@ -13,7 +13,7 @@
 | **Interactive Menu** | ✅ Ready | `tools/recon_menu.py` — full menu-driven interface |
 | **CLI** | ✅ Ready | Typer-based with 8 subcommands via `recon.py` |
 | **Tests** | ✅ 62/62 | Config, DNS, ports, vulns, output |
-| **Modules** | ✅ 7 | DNS, host discovery, OS, ports, vulns, wireless, PCAP |
+| **Modules** | ✅ 12 | DNS, host, OS, ports, vulns, wireless, PCAP, HTTP, TLS, SMB, SNMP, Async Scan |
 | **CVE Database** | ✅ 55 | Apache, SSH, Log4j, Exchange, F5, Citrix, VMware… |
 | **Service Probes** | ✅ 35+ | HTTP, SSH, Redis, ES, Docker, K8s… |
 | **Default Creds** | ✅ 13 | FTP, SSH, HTTP, Redis, MySQL, MongoDB… |
@@ -140,6 +140,7 @@ python menu.py
 
   RECONNAISSANCE TOOLS
 
+  CORE RECONNAISSANCE
   1.  DNS Enumeration      zone transfer · records · subdomain brute
   2.  Host Discovery       ARP · ICMP · TCP · UDP
   3.  OS Scan              TTL · TCP stack · banners · ICMP quirks
@@ -147,6 +148,13 @@ python menu.py
   5.  Port Scan            SYN/Connect/FIN/XMAS/ACK/UDP + services
   6.  Vulnerability Scan   CVE DB · SSL audit · default creds
   7.  Wireless Adapter     monitor mode · channel hopping
+
+  ADVANCED MODULES
+  8.  HTTP Probe           WAF/CDN/tech fingerprint, security headers, path discovery
+  9.  TLS Probe            Cipher enum, cert chain, JA3S, CT logs
+  A.  SMB Enum             NetBIOS, dialect negotiation, EternalBlue/SMBGhost pre-checks
+  B.  SNMP Enum            Community brute, sysInfo, ARP, routes, process list
+  F.  Async Scan           10k–50k ports/s asyncio scanner, no root required
 
   P.  PCAP Settings        ○ capture OFF
   0.  Exit
@@ -351,6 +359,11 @@ Shows current user, effective UID, Scapy availability, and which scan types are 
 | `vuln_scan.py` | Vulnerability Scan | 55 CVEs, SSL audit, default creds, misconfigs |
 | `wireless.py` | Wireless Recon | Monitor mode, channel hopping, 802.11 parsing |
 | `pcap_capture.py` | PCAP Capture | AsyncSniffer, ring-buffer, thread-safe |
+| `http_probe.py` | HTTP Probing | WAF/CDN/tech fingerprint, security headers, path discovery |
+| `tls_probe.py` | TLS Probing | Cipher enum, cert chain, JA3S, CT logs |
+| `smb_enum.py` | SMB Enumeration | NetBIOS, dialect negotiation, EternalBlue/SMBGhost pre-checks |
+| `snmp_enum.py` | SNMP Enumeration | Community brute, sysInfo, ARP, routes, process list |
+| `async_scan.py` | Async Port Scan | 10k–50k ports/s asyncio scanner, no root required |
 
 ---
 
@@ -415,7 +428,12 @@ recon-toolkit/
 │   │   ├── port_scan.py
 │   │   ├── vuln_scan.py
 │   │   ├── wireless.py
-│   │   └── pcap_capture.py
+│   │   ├── pcap_capture.py
+│   │   ├── http_probe.py
+│   │   ├── tls_probe.py
+│   │   ├── smb_enum.py
+│   │   ├── snmp_enum.py
+│   │   └── async_scan.py
 │   │
 │   ├── data/
 │   │   ├── cve_db.json             # 55 CVE entries
