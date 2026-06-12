@@ -10,4 +10,10 @@ __all__ = [
     "vuln_scan",
     "wireless",
     "pcap_capture",
+    # Advanced modules
+    "http_probe",
+    "tls_probe",
+    "smb_enum",
+    "snmp_enum",
+    "async_scan",
 ]
