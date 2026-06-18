@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 ╔══════════════════════════════════════════════════════════════════════╗
-║          RECONNAISSANCE TOOLKIT  —  INTERACTIVE MENU                ║
-║                                                                      ║
+║        S·H·I·V  —  recon_toolkit  —  INTERACTIVE MENU              ║
+║   Security Hunting · Intelligence · Vulnerability Assessment         ║
 ║  1. DNS Enumeration      — zone transfer, records, subdomain brute   ║
 ║  2. Host Discovery       — ARP, ICMP, TCP, UDP multi-method          ║
 ║  3. OS Scan              — TTL, TCP stack, banners, ICMP quirks      ║
@@ -69,7 +69,7 @@ def banner():
             pass
     # Fallback: plain header
     ts = datetime.now().strftime("%Y-%m-%d  %H:%M:%S")
-    print(f"\033[1;38;5;51m  recon-toolkit\033[0m"
+    print(f"\033[1;38;5;51m  SHIV-recon_toolkit\033[0m"
           f"\033[38;5;238m  ◈  \033[0m"
           f"\033[2;38;5;240m{ts}\033[0m\n")
 
