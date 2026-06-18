@@ -555,16 +555,124 @@ def _print_enter_prompt(bc: Console) -> None:
     bc.clear()
 
 
+def _ansi_str(text: str, style_str: str) -> str:
+    """Wrap text in ANSI escape codes derived from a style string."""
+    esc = _ansi(style_str)
+    return f"{esc}{text}{_RESET_ESC}" if esc else text
+
+
+def _rich_line(obj) -> str:
+    """Render a Rich Text object to a plain ANSI string (no trailing newline)."""
+    from io import StringIO as _StringIO
+    sio = _StringIO()
+    cap = Console(file=sio, force_terminal=True, legacy_windows=False,
+                  highlight=False, width=80)
+    cap.print(obj, end="")
+    return sio.getvalue()
+
+
+def _build_right_column(author: str, quote: str) -> list[str]:
+    """Build the right-hand text panel as a list of ANSI-colored strings."""
+    sep = _ansi_str("  ─────────────────────────────────────────", "color(238) dim")
+    L: list[str] = []
+
+    L += ["", ""]
+
+    # SHIV logo
+    for row in SHIV_ART.splitlines():
+        if row.strip():
+            L.append(_rich_line(_color_row(row)))
+    L.append("")
+
+    # Tagline
+    L.append(
+        "  "
+        + _ansi_str("S", "color(51) bold") + _ansi_str("ecurity  ",         "color(240)")
+        + _ansi_str("H", "color(51) bold") + _ansi_str("unting  ",           "color(240)")
+        + _ansi_str("I", "color(51) bold") + _ansi_str("ntelligence  &  ",   "color(240)")
+        + _ansi_str("V", "color(51) bold") + _ansi_str("ulnerability Assessment", "color(240)")
+    )
+    L.append(_ansi_str("          ─────── recon_toolkit ───────", "color(238) dim"))
+    L.append("")
+
+    # Made by
+    L.append(
+        _ansi_str("  ── made by ", "color(240) italic")
+        + _ansi_str("Swastik",     "color(213) bold")
+        + _ansi_str(" ──",         "color(240) italic")
+    )
+    L.append("")
+
+    # Quote
+    L.append(sep)
+    L.append("")
+    wrapped = textwrap.fill(quote, width=50).splitlines()
+    for i, ln in enumerate(wrapped):
+        prefix = "   ❝  " if i == 0 else "      "
+        suffix = "  ❞"    if i == len(wrapped) - 1 else ""
+        L.append(_ansi_str(prefix + ln + suffix, "color(252) italic"))
+    L.append("")
+    L.append(_ansi_str(f"        — {author}", "color(87) bold"))
+    L.append("")
+    L.append(sep)
+
+    # Disclaimer
+    L.append("")
+    L.append(_ansi_str("  ⚠  LEGAL NOTICE", "color(196) bold"))
+    L.append("")
+    for ln in (
+        "  Use only on systems you own or have written",
+        "  permission to test. Unauthorized access is a",
+        "  criminal offence under CFAA, IT Act 2000 and",
+        "  equivalent laws worldwide. No liability accepted.",
+    ):
+        L.append(_ansi_str(ln, "color(252)"))
+    L.append("")
+    L.append(sep)
+
+    # Status
+    ts = datetime.now().strftime("%Y-%m-%d  %H:%M:%S")
+    L.append("")
+    L.append(
+        _ansi_str("  ◈ ", "color(51)")
+        + _ansi_str("toolkit: ",  "color(240) dim") + _ansi_str("SHIV v3.0", "color(87) bold")
+        + _ansi_str("   ◈ ",      "color(51)")
+        + _ansi_str("status: ",   "color(240) dim") + _ansi_str("ready",     "color(87) bold")
+        + _ansi_str("   ◈ ",      "color(51)")
+        + _ansi_str(ts,            "color(87) bold")
+    )
+    return L
+
+
 def print_banner() -> None:
     """Full launch banner — SHIV edition, called once at startup."""
     os.system("cls" if os.name == "nt" else "clear")
     bc = _make_banner_console()
 
-    _print_mahadev(bc)
+    _data = Path(__file__).parent.parent / "data" / "mahadev.png"
+
+    if _data.exists():
+        try:
+            img_lines = _render_image_blocks(str(_data))
+        except Exception:
+            img_lines = []
+
+        if img_lines:
+            author, quote = random.choice(QUOTES)
+            txt_lines     = _build_right_column(author, quote)
+            n = max(len(img_lines), len(txt_lines))
+            for i in range(n):
+                left  = img_lines[i] if i < len(img_lines) else " " * 54
+                right = txt_lines[i] if i < len(txt_lines) else ""
+                _raw_write(left + "  " + right + "\n")
+                time.sleep(0.012)
+            _print_enter_prompt(bc)
+            return
+
+    # No image — text-only layout (no ASCII art fallback)
     _print_art(bc)
     _print_tagline()
     _print_made_by()
-
     author, quote = random.choice(QUOTES)
     bc.print()
     _print_quote(bc, author, quote)
