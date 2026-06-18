@@ -187,19 +187,26 @@ def make_progress(description: str = "Scanning") -> Progress:
 
 # ─── Banner system (wifi_down-style) ─────────────────────────────────────────
 
-ADIYOGI_ART = """\
-                              ☽
-     ~~   ~~   ~~   ~~   ~~   ~~   ~~   ~~
-   ~~  ~~   ~~   ~~   ~~   ~~   ~~   ~~  ~~
-  ~~  ~~  ~~  ~~  .─────────────────.  ~~  ~~
-  ~~  ~~  ~~  ~~ /  ─ ─ ─ • ─ ─ ─   \ ~~  ~~
-  ~~  ~~  ~~  ~~|   ╭──╮     ╭──╮    |~~  ~~
-  ~~  ~~  ~~  ~~|   ╰──╯     ╰──╯    |~~  ~~
-  ~~  ~~  ~~  ~~|        ∩            |~~  ~~
-  ~~  ~~  ~~  ~~|     ─────────       |~~  ~~
-  ~~  ~~  ~~  ~~ \   ─ ─ ─ ─ ─ ─    / ~~  ~~
-  ~~  ~~  ~~  ~~   ─────────────────  ~~  ~~
-    ~~   ~~   ~~   ~~   ~~   ~~   ~~   ~~"""
+MAHADEV_ART = """\
+                                          ☽  )
+                                       ☽       )
+    ≋  ≋  ≋  ≋  ≋  ≋  ≋  ≋  ≋  ≋  ≋≋≋   ≋  )
+   ≋≋  ≋≋  ≋≋  ≋≋  ≋≋  ≋≋  ≋≋  ≋≋  ≋≋  ≋≋  ≋≋
+  ≋≋  ≋≋  ≋≋  ≋ .──────────────────. ≋≋  ≋≋  ≋≋
+  ≋≋  ≋≋  ≋≋  ≋/        ▽           \≋≋  ≋≋  ≋≋
+  ≋≋  ≋≋  ≋≋  ≋|  ╱────╲   ╱────╲   |≋≋  ≋≋  ≋≋
+  ≋≋  ≋≋  ≋≋  ≋|  ╰════╯   ╰════╯   |≋≋  ≋≋  ≋≋
+  ≋≋  ≋≋  ≋≋  ≋|                    |≋≋  ≋≋  ≋≋
+  ≋≋  ≋≋  ≋≋  ≋|      ╭──╮          |≋≋  ≋≋  ≋≋
+  ≋≋  ≋≋  ≋≋  ≋|      │  │          |≋≋  ≋≋  ≋≋
+  ≋≋  ≋≋  ≋≋  ≋|      ╰──╯          |≋≋  ≋≋  ≋≋
+  ≋≋  ≋≋  ≋≋  ≋|      ─────         |≋≋  ≋≋  ≋≋
+ ◉≋≋  ≋≋  ≋≋  ≋|    ─────────       |≋≋  ≋≋  ≋≋◉
+  ≋≋  ≋≋  ≋≋  ≋|                    |≋≋  ≋≋  ≋≋
+  ≋≋  ≋≋  ≋≋  ≋ \──────────────────/≋≋  ≋≋  ≋≋
+  ≋≋  ≋≋  ≋≋  ≋  ──────────────────  ≋≋  ≋≋  ≋≋
+   ≋≋  ≋≋  ≋≋  ≋≋  ≋≋  ≋≋  ≋≋  ≋≋  ≋≋  ≋≋  ≋≋
+  ○●○●○●○●○●○●○●○●○●○●○●○●○●○●○"""
 
 SHIV_ART = """\
 ███████╗██╗  ██╗██╗██╗   ██╗
@@ -250,11 +257,14 @@ _S_MID    = Style(color="color(87)", bold=True)
 _S_RIGHT  = Style(color="color(50)")
 _S_CORNER = Style(color="color(45)", bold=True)
 
-_S_JATA  = Style(color="color(87)")              # cyan for matted hair (jata)
-_S_MOON  = Style(color="color(226)", bold=True)   # gold for crescent moon
-_S_TEYE  = Style(color="color(196)", bold=True)   # red for third eye (Ajna)
-_S_EYES  = Style(color="color(123)", bold=True)   # bright cyan for eye brackets
-_S_FACE  = Style(color="color(255)")              # bright white for face
+# Mahadev portrait — purple-left / cyan-right neon split
+_S_PURPLE = Style(color="color(93)",  bold=True)   # purple left hair
+_S_VIOLET = Style(color="color(135)")              # violet mid-transition
+_S_CYAN_H = Style(color="color(51)",  bold=True)   # bright cyan right hair + face
+_S_CYAN2  = Style(color="color(87)")               # softer cyan left face features
+_S_WHITE  = Style(color="color(255)", bold=True)   # moon, tilak
+_S_ORANGE = Style(color="color(208)", bold=True)   # orange earrings (kundal)
+_FACE_CENTER = 25                                   # column split for purple/cyan hair
 
 _RESET_ESC = "\033[0m"
 
@@ -301,28 +311,51 @@ def _typewrite(text: str, style: str = "", delay: float = 0.018, newline: bool =
         _raw_write("\n")
 
 
-def _color_adiyogi_row(row: str) -> Text:
-    """Color a single Adiyogi art row — gold moon, cyan jata, red third eye, white face."""
+def _color_mahadev_row(row: str, row_idx: int, total_rows: int) -> Text:
+    """Color one row of the Mahadev portrait.
+
+    ≋ left of _FACE_CENTER → purple hair
+    ≋ right of _FACE_CENTER → cyan hair
+    face outline / features  → cyan (dual-tone across center)
+    ☽ / ) in first 2 rows   → white moon
+    ▽                        → white tilak
+    ◉                        → orange earring
+    bead row ●○              → purple→cyan gradient
+    """
+    is_bead_row = (row_idx >= total_rows - 1)
     t = Text()
-    for ch in row:
-        if ch == '☽':       # ☽ crescent
-            t.append(ch, _S_MOON)
-        elif ch == '~':
-            t.append(ch, _S_JATA)
-        elif ch == '•':     # • third eye
-            t.append(ch, _S_TEYE)
-        elif ch in ('╭', '╮', '╰', '╯'):  # ╭ ╮ ╰ ╯
-            t.append(ch, _S_EYES)
+    n = len(row)
+    for col, ch in enumerate(row):
+        if ch == ' ':
+            t.append(ch)
+        elif ch == '☽' or (ch == ')' and row_idx <= 1):
+            t.append(ch, _S_WHITE)
+        elif ch in ('▽', '▼'):
+            t.append(ch, _S_WHITE)
+        elif ch == '◉':
+            t.append(ch, _S_ORANGE)
+        elif is_bead_row and ch in ('●', '○'):
+            ratio = col / max(n - 1, 1)
+            if ratio < 0.30:
+                t.append(ch, _S_PURPLE)
+            elif ratio < 0.55:
+                t.append(ch, _S_VIOLET)
+            else:
+                t.append(ch, _S_CYAN_H)
+        elif ch == '≋':
+            t.append(ch, _S_PURPLE if col < _FACE_CENTER else _S_CYAN_H)
         else:
-            t.append(ch, _S_FACE)
+            t.append(ch, _S_CYAN2 if col < _FACE_CENTER else _S_CYAN_H)
     return t
 
 
-def _print_adiyogi(bc: Console) -> None:
-    """Scan-line reveal of the Adiyogi Shiva ASCII art."""
-    for row in ADIYOGI_ART.splitlines():
-        bc.print(_color_adiyogi_row(row))
-        time.sleep(0.04)
+def _print_mahadev(bc: Console) -> None:
+    """Scan-line reveal of the Mahadev neon portrait."""
+    rows = MAHADEV_ART.splitlines()
+    total = len(rows)
+    for i, row in enumerate(rows):
+        bc.print(_color_mahadev_row(row, i, total))
+        time.sleep(0.038)
 
 
 def _color_row(row: str) -> Text:
@@ -473,7 +506,7 @@ def print_banner() -> None:
     os.system("cls" if os.name == "nt" else "clear")
     bc = _make_banner_console()
 
-    _print_adiyogi(bc)
+    _print_mahadev(bc)
     _print_art(bc)
     _print_tagline()
     _print_made_by()
