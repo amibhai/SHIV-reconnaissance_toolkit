@@ -250,6 +250,12 @@ _S_MID    = Style(color="color(87)", bold=True)
 _S_RIGHT  = Style(color="color(50)")
 _S_CORNER = Style(color="color(45)", bold=True)
 
+_S_JATA  = Style(color="color(87)")              # cyan for matted hair (jata)
+_S_MOON  = Style(color="color(226)", bold=True)   # gold for crescent moon
+_S_TEYE  = Style(color="color(196)", bold=True)   # red for third eye (Ajna)
+_S_EYES  = Style(color="color(123)", bold=True)   # bright cyan for eye brackets
+_S_FACE  = Style(color="color(255)")              # bright white for face
+
 _RESET_ESC = "\033[0m"
 
 
