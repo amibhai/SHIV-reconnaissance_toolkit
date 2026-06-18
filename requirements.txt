@@ -10,6 +10,9 @@ dnspython>=2.4.0
 # Rich terminal UI
 rich>=13.0.0
 
+# Image rendering for launch banner (half-block true-color)
+Pillow>=10.0.0
+
 # CLI framework
 typer>=0.9.0
 

@@ -349,8 +349,62 @@ def _color_mahadev_row(row: str, row_idx: int, total_rows: int) -> Text:
     return t
 
 
+def _render_image_blocks(image_path: str, term_width: int = 54) -> list[str]:
+    """
+    Render an image as ANSI true-color half-block (▀/▄) rows.
+
+    Each character cell covers 2 vertical image pixels.
+    Near-black pixels (<30 total RGB) become spaces so the terminal
+    background bleeds through — creating the 'blended' effect.
+    """
+    from PIL import Image as _PILImage
+
+    img = _PILImage.open(image_path).convert("RGBA")
+    iw, ih = img.size
+    # Characters are ~2× taller than wide; each row = 2 pixel rows.
+    px_w = term_width
+    px_h = int(px_w * ih / iw)          # raw pixel height at this width
+    px_h = px_h + (px_h % 2)            # ensure even
+    img  = img.resize((px_w, px_h), _PILImage.LANCZOS)
+    pxs  = img.load()
+
+    lines: list[str] = []
+    for r in range(0, px_h, 2):
+        parts: list[str] = []
+        for c in range(px_w):
+            r1, g1, b1, a1 = pxs[c, r]
+            r2, g2, b2, a2 = pxs[c, r + 1] if r + 1 < px_h else (0, 0, 0, 255)
+            if a1 < 128: r1 = g1 = b1 = 0
+            if a2 < 128: r2 = g2 = b2 = 0
+            dark1 = (r1 + g1 + b1) < 30
+            dark2 = (r2 + g2 + b2) < 30
+            if dark1 and dark2:
+                parts.append(" ")
+            elif dark1:
+                parts.append(f"\033[38;2;{r2};{g2};{b2}m▄\033[0m")
+            elif dark2:
+                parts.append(f"\033[38;2;{r1};{g1};{b1}m▀\033[0m")
+            else:
+                parts.append(
+                    f"\033[38;2;{r1};{g1};{b1}m"
+                    f"\033[48;2;{r2};{g2};{b2}m▀\033[0m"
+                )
+        lines.append("".join(parts))
+    return lines
+
+
 def _print_mahadev(bc: Console) -> None:
-    """Scan-line reveal of the Mahadev neon portrait."""
+    """Print Mahadev — true-color half-block image if found, else ASCII fallback."""
+    _data = Path(__file__).parent.parent / "data" / "mahadev.png"
+    try:
+        if _data.exists():
+            for line in _render_image_blocks(str(_data)):
+                _raw_write(line + "\n")
+                time.sleep(0.012)
+            return
+    except Exception:
+        pass
+    # Fallback: ASCII art with neon split-color
     rows = MAHADEV_ART.splitlines()
     total = len(rows)
     for i, row in enumerate(rows):
