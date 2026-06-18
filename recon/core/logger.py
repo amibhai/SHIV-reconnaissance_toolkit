@@ -430,7 +430,7 @@ def _print_status(bc: Console) -> None:
     segments = [
         ("  ◈ ",        "color(51)"),
         ("toolkit: ",     "color(240) dim"),
-        ("recon v2.0",    "color(87) bold"),
+        ("SHIV v3.0",     "color(87) bold"),
         ("   ◈ ",       "color(51)"),
         ("status: ",      "color(240) dim"),
         ("ready",         "color(87) bold"),
@@ -447,7 +447,7 @@ def _print_status(bc: Console) -> None:
 
 def _print_enter_prompt(bc: Console) -> None:
     """Typewriter prompt → 3-color pulse → wait for ENTER → clear screen."""
-    prompt = "         [ Press ENTER to launch recon-toolkit ]"
+    prompt = "           [ Press ENTER  to  launch  S·H·I·V ]"
     bc.print()
     _typewrite(prompt, style="color(51) bold", delay=0.045)
 
