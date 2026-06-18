@@ -343,8 +343,8 @@ def _color_row(row: str) -> Text:
 
 
 def _print_art(bc: Console) -> None:
-    """Scan-line reveal — print each art row with a 0.04 s delay."""
-    for row in RECON_ART.splitlines():
+    """Scan-line reveal of the SHIV text logo with a 0.04 s delay per row."""
+    for row in SHIV_ART.splitlines():
         if not row.strip():
             continue
         bc.print(_color_row(row))
