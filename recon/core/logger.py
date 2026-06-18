@@ -301,6 +301,30 @@ def _typewrite(text: str, style: str = "", delay: float = 0.018, newline: bool =
         _raw_write("\n")
 
 
+def _color_adiyogi_row(row: str) -> Text:
+    """Color a single Adiyogi art row — gold moon, cyan jata, red third eye, white face."""
+    t = Text()
+    for ch in row:
+        if ch == '☽':       # ☽ crescent
+            t.append(ch, _S_MOON)
+        elif ch == '~':
+            t.append(ch, _S_JATA)
+        elif ch == '•':     # • third eye
+            t.append(ch, _S_TEYE)
+        elif ch in ('╭', '╮', '╰', '╯'):  # ╭ ╮ ╰ ╯
+            t.append(ch, _S_EYES)
+        else:
+            t.append(ch, _S_FACE)
+    return t
+
+
+def _print_adiyogi(bc: Console) -> None:
+    """Scan-line reveal of the Adiyogi Shiva ASCII art."""
+    for row in ADIYOGI_ART.splitlines():
+        bc.print(_color_adiyogi_row(row))
+        time.sleep(0.04)
+
+
 def _color_row(row: str) -> Text:
     """Apply tri-zone cyan gradient to a single art row."""
     n  = len(row)
