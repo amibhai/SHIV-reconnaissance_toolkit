@@ -469,11 +469,13 @@ def _print_enter_prompt(bc: Console) -> None:
 
 
 def print_banner() -> None:
-    """Full launch banner — wifi_down-style, called once at startup."""
+    """Full launch banner — SHIV edition, called once at startup."""
     os.system("cls" if os.name == "nt" else "clear")
     bc = _make_banner_console()
 
+    _print_adiyogi(bc)
     _print_art(bc)
+    _print_tagline()
     _print_made_by()
 
     author, quote = random.choice(QUOTES)
@@ -489,7 +491,7 @@ def print_compact_header(target: str | None = None) -> None:
     ts    = datetime.now().strftime("%Y-%m-%d  %H:%M:%S")
     label = target or "no target"
     t = Text.assemble(
-        ("  recon-toolkit", Style(color="color(51)", bold=True)),
+        ("  SHIV-recon_toolkit", Style(color="color(51)", bold=True)),
         ("  ◈  ",       Style(color="color(238)")),
         (ts,                Style(color="color(240)", dim=True)),
         ("  ◈  ",       Style(color="color(238)")),
