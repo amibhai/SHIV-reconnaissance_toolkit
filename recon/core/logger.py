@@ -351,6 +351,29 @@ def _print_art(bc: Console) -> None:
         time.sleep(0.04)
 
 
+def _print_tagline() -> None:
+    """Typewriter print of the SHIV acronym expansion + recon_toolkit subtitle."""
+    _raw_write("\n")
+    parts = [
+        ("  ",                  ""),
+        ("S",                   "color(51) bold"),
+        ("ecurity  ",           "color(240)"),
+        ("H",                   "color(51) bold"),
+        ("unting  ",            "color(240)"),
+        ("I",                   "color(51) bold"),
+        ("ntelligence  &  ",    "color(240)"),
+        ("V",                   "color(51) bold"),
+        ("ulnerability Assessment", "color(240)"),
+    ]
+    for text, style_str in parts:
+        esc = _ansi(style_str) if style_str else ""
+        for char in text:
+            _raw_write(f"{esc}{char}{_RESET_ESC}" if esc else char)
+            time.sleep(0.012)
+    _raw_write("\n")
+    _typewrite("          ─────── recon_toolkit ───────", style="color(238) dim", delay=0.008)
+
+
 def _print_made_by() -> None:
     """Left-aligned 'made by Swastik' printed char-by-char at 0.04 s/char."""
     parts = [
