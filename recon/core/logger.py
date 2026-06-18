@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import random
 import sys
 import textwrap
@@ -309,6 +310,20 @@ def _typewrite(text: str, style: str = "", delay: float = 0.018, newline: bool =
         time.sleep(delay)
     if newline:
         _raw_write("\n")
+
+
+_ANSI_ESC_RE = re.compile(r"(\033\[[0-9;]*m)")
+
+
+def _typewrite_ansi(text: str, delay: float = 0.008) -> None:
+    """Type visible characters one-by-one with *delay*; flush ANSI codes instantly."""
+    for token in _ANSI_ESC_RE.split(text):
+        if _ANSI_ESC_RE.fullmatch(token):
+            _raw_write(token)          # colour code — instant
+        else:
+            for ch in token:
+                _raw_write(ch)
+                time.sleep(delay)
 
 
 def _color_mahadev_row(row: str, row_idx: int, total_rows: int) -> Text:
@@ -644,6 +659,9 @@ def _build_right_column(author: str, quote: str) -> list[str]:
     return L
 
 
+_IMG_COLS = 54   # visual columns the image occupies
+
+
 def print_banner() -> None:
     """Full launch banner — SHIV edition, called once at startup."""
     os.system("cls" if os.name == "nt" else "clear")
@@ -653,19 +671,26 @@ def print_banner() -> None:
 
     if _data.exists():
         try:
-            img_lines = _render_image_blocks(str(_data))
+            img_lines = _render_image_blocks(str(_data), term_width=_IMG_COLS)
         except Exception:
             img_lines = []
 
         if img_lines:
             author, quote = random.choice(QUOTES)
-            txt_lines     = _build_right_column(author, quote)
-            n = max(len(img_lines), len(txt_lines))
-            for i in range(n):
-                left  = img_lines[i] if i < len(img_lines) else " " * 54
-                right = txt_lines[i] if i < len(txt_lines) else ""
-                _raw_write(left + "  " + right + "\n")
-                time.sleep(0.012)
+            txt_lines = _build_right_column(author, quote)
+
+            # ── 1. Dump all image rows instantly ─────────────────────────────
+            for line in img_lines:
+                _raw_write(line + "\n")
+
+            # ── 2. Cursor-jump to top-right and fast-typewrite text column ───
+            txt_start_col = _IMG_COLS + 3   # 1-indexed terminal column
+            for i, txt in enumerate(txt_lines):
+                _raw_write(f"\033[{i + 1};{txt_start_col}H")
+                _typewrite_ansi(txt, delay=0.008)
+
+            # ── 3. Move cursor below the image for the enter prompt ──────────
+            _raw_write(f"\033[{len(img_lines) + 1};1H")
             _print_enter_prompt(bc)
             return
 
