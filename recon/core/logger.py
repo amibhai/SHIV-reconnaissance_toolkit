@@ -249,6 +249,15 @@ QUOTES = [
         "I think of hacking as an intellectual challenge — "
         "a puzzle waiting to be solved.",
     ),
+    (
+        "Stephen Hawking",
+        "Look up at the stars and not down at your feet. Try to make sense of "
+        "what you see, and wonder about what makes the universe exist. Be curious.",
+    ),
+    (
+        "Wargames (1983)",
+        "A strange game. The only winning move is not to play.",
+    ),
 ]
 
 _CORNER_CHARS = frozenset("╗╔╝╚╣╠╦╩╬")
