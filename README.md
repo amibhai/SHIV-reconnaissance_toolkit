@@ -63,6 +63,9 @@ python recon.py privcheck
 python recon.py --help
 ```
 
+> [!TIP]
+> Run `pytest` after installation to verify all 62 unit tests pass on your environment.
+
 ---
 
 ## Quick Start
