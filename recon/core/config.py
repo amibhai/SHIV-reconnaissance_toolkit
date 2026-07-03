@@ -157,6 +157,7 @@ class ReconConfig(BaseSettings):
     @field_validator("evasion_level", mode="after")
     @classmethod
     def sync_evasion_flags(cls, v: int) -> int:
+        """Validate or sync evasion flags based on the evasion level setting."""
         return v
 
     def effective_delay(self) -> float:
