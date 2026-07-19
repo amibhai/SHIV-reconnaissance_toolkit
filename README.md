@@ -534,4 +534,4 @@ By using this toolkit you confirm you have written authorization from the target
 
 ---
 
-*SHIV — recon-toolkit v2.0 — built by Swastik*
+*SHIV — recon-toolkit v2.0 — Built by Swastik*
