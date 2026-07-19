@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Recon Toolkit are documented here.
+All notable changes to the Recon Toolkit are documented here.
 
 ---
 
