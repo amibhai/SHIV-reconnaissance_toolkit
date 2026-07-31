@@ -93,8 +93,16 @@ class WirelessManager:
         # Register cleanup handlers
         atexit.register(self._cleanup)
         if platform.system() != "Windows":
-            signal.signal(signal.SIGINT,  self._signal_handler)
-            signal.signal(signal.SIGTERM, self._signal_handler)
+            try:
+                signal.signal(signal.SIGINT,  self._signal_handler)
+                signal.signal(signal.SIGTERM, self._signal_handler)
+            except ValueError:
+                # signal.signal() only works from the main thread of the
+                # main interpreter; if WirelessManager is constructed
+                # from a worker thread, just skip and rely on atexit.
+                _log.debug(
+                    "Skipping SIGINT/SIGTERM handlers — not in main thread"
+                )
 
     # ------------------------------------------------------------------ #
     # Interface discovery                                                  #
@@ -402,7 +410,6 @@ class WirelessManager:
         try:
             subprocess.run(["ip", "link", "set", iface, "down"],
                            capture_output=True, timeout=5)
-            base = iface.replace("mon", "")
             subprocess.run(["iw", "dev", iface, "set", "type", "managed"],
                            capture_output=True, timeout=5)
             subprocess.run(["ip", "link", "set", iface, "up"],

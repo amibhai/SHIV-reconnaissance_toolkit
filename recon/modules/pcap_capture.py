@@ -226,6 +226,24 @@ class PCAPCapture:
 
         return session.output_path
 
+    @staticmethod
+    def _detect_linktype(packets: list[Any]) -> int:
+        """Pick the PCAP linktype from the captured packets' layers.
+
+        Wireless sessions carry Dot11/RadioTap frames, not Ethernet;
+        writing those out tagged as LINKTYPE_ETHERNET produces a file
+        Wireshark and other tools will misparse.
+        """
+        LINKTYPE_ETHERNET = 1
+        LINKTYPE_IEEE802_11_RADIOTAP = 127
+        for pkt in packets:
+            try:
+                if pkt.haslayer("RadioTap") or pkt.haslayer("Dot11"):
+                    return LINKTYPE_IEEE802_11_RADIOTAP
+            except Exception:
+                pass
+        return LINKTYPE_ETHERNET
+
     def _write_pcap_file(
         self,
         path: Path,
@@ -237,7 +255,7 @@ class PCAPCapture:
         PCAP_MAJOR = 2
         PCAP_MINOR = 4
         SNAPLEN = 65535
-        LINKTYPE_ETHERNET = 1
+        linktype = self._detect_linktype(packets)
 
         try:
             with open(path, "wb") as f:
@@ -248,7 +266,7 @@ class PCAPCapture:
                     0,         # thiszone (GMT)
                     0,         # sigfigs
                     SNAPLEN,
-                    LINKTYPE_ETHERNET,
+                    linktype,
                 ))
                 # Write packet records
                 for pkt in packets:
