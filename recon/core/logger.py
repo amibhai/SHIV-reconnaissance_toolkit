@@ -16,7 +16,7 @@ import sys
 import textwrap
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -100,7 +100,7 @@ class _JsonlHandler(logging.Handler):
 
     def emit(self, record: logging.LogRecord) -> None:
         entry = {
-            "ts": datetime.utcfromtimestamp(record.created).isoformat() + "Z",
+            "ts": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(),
             "level": record.levelname,
             "module": record.name,
             "msg": record.getMessage(),

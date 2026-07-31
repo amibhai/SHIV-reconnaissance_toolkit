@@ -20,7 +20,7 @@ from __future__ import annotations
 import json
 import sys
 import webbrowser
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -110,7 +110,7 @@ def dns(
     )
 
     # Save outputs
-    ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     out = OutputManager(cfg.output_dir, f"dns_{domain}_{ts}")
 
     report = ScanReport(target=domain, scan_type="dns")
@@ -175,7 +175,7 @@ def discover(
     console.print(table)
 
     # Save
-    ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     out_path = cfg.output_dir / f"discover_{ts}.json"
     with open(out_path, "w") as f:
         json.dump([h.to_dict() for h in hosts], f, indent=2)
@@ -268,7 +268,7 @@ def portscan(
     console.print(table)
 
     # Save
-    ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     out_path = cfg.output_dir / f"portscan_{target}_{ts}.json"
     with open(out_path, "w") as f:
         json.dump([r.to_dict() for r in results], f, indent=2)
@@ -334,7 +334,7 @@ def vulnscan(
     )
 
     # Save
-    ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     out_path = cfg.output_dir / f"vulnscan_{target}_{ts}.json"
     with open(out_path, "w") as f:
         json.dump([f.to_dict() for f in findings], f, indent=2)
@@ -455,7 +455,7 @@ def full(
         )
 
     cfg = _common_config(threads, timeout, out, evasion, pcap, verbose)
-    ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     report = ScanReport(target=target, scan_type="full")
 
     findings_live: list[dict] = []

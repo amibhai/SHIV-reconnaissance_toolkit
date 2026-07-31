@@ -12,7 +12,7 @@ import struct
 import threading
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -115,7 +115,7 @@ class PCAPCapture:
             return self._sessions[session_id]
 
         filt = bpf_filter if bpf_filter is not None else _DEFAULT_FILTERS.get(scan_module, "")
-        ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         fname = f"{session_id}_{ts}.pcap"
         out_path = self.output_dir / fname
 
