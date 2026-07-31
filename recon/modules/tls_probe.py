@@ -212,10 +212,12 @@ class TLSProbe:
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
         if ciphers:
-            try:
-                ctx.set_ciphers(ciphers)
-            except ssl.SSLError:
-                pass
+            # Let this propagate: if the local OpenSSL build refuses the
+            # requested cipher name outright, silently keeping the
+            # context's default (modern) cipher list would let the probe
+            # connect successfully and misreport the negotiated strong
+            # cipher as evidence that the requested legacy one is broken.
+            ctx.set_ciphers(ciphers)
         if min_ver and hasattr(ctx, "minimum_version"):
             try:
                 ctx.minimum_version = min_ver
@@ -235,9 +237,15 @@ class TLSProbe:
             raw = socket.create_connection(
                 (self.target, self.port), timeout=self._timeout
             )
-            sock = ctx.wrap_socket(raw, server_hostname=self.target)
-            return sock
         except Exception:
+            return None
+        try:
+            return ctx.wrap_socket(raw, server_hostname=self.target)
+        except Exception:
+            # Handshake failure is the expected outcome for most probes
+            # here (rejected cipher/protocol) — just make sure the plain
+            # socket doesn't leak since wrap_socket never returned one.
+            raw.close()
             return None
 
     # ── Certificate extraction ────────────────────────────────────────────────
@@ -325,11 +333,12 @@ class TLSProbe:
             der = sock.getpeercert(binary_form=True)
             chain = sock.get_verified_chain() if hasattr(sock, "get_verified_chain") else []
             self._result.cert_chain_depth = len(chain)
-            sock.close()
             if der:
                 return self._parse_cert_der(der)
         except Exception:
             pass
+        finally:
+            sock.close()
         return CertInfo()
 
     # ── Protocol version matrix ───────────────────────────────────────────────
@@ -375,12 +384,12 @@ class TLSProbe:
         ]
 
         for cipher in noteworthy:
+            sock = None
             try:
                 ctx = self._ctx(ciphers=cipher)
                 sock = self._connect_tls(ctx)
                 if sock:
                     selected = sock.cipher()[0] if sock.cipher() else cipher
-                    sock.close()
                     self._result.supported_ciphers.append(selected)
                     # Categorise
                     upper = cipher.upper()
@@ -392,6 +401,9 @@ class TLSProbe:
                             self._result.weak_ciphers_found.append(selected)
             except Exception:
                 pass
+            finally:
+                if sock:
+                    sock.close()
 
     # ── JA3S fingerprint ──────────────────────────────────────────────────────
 
@@ -424,6 +436,7 @@ class TLSProbe:
 
     def check_hsts(self) -> tuple[bool, int]:
         """Return (hsts_present, max_age_seconds) by making an HTTP request."""
+        conn = None
         try:
             import http.client
             ctx = ssl.create_default_context()
@@ -436,13 +449,15 @@ class TLSProbe:
             resp = conn.getresponse()
             hdrs = {k.lower(): v for k, v in resp.getheaders()}
             hsts_hdr = hdrs.get("strict-transport-security", "")
-            conn.close()
             if hsts_hdr:
                 m = re.search(r"max-age=(\d+)", hsts_hdr)
                 age = int(m.group(1)) if m else 0
                 return True, age
         except Exception:
             pass
+        finally:
+            if conn:
+                conn.close()
         return False, 0
 
     # ── Certificate Transparency lookup ──────────────────────────────────────
@@ -452,6 +467,7 @@ class TLSProbe:
         Query crt.sh for all known names on this domain's certificates.
         Returns list of subdomains/domains.
         """
+        conn = None
         try:
             import http.client, urllib.parse
             conn = http.client.HTTPSConnection("crt.sh", timeout=10)
@@ -462,7 +478,6 @@ class TLSProbe:
             if resp.status != 200:
                 return []
             data = json.loads(resp.read(512 * 1024).decode("utf-8", errors="replace"))
-            conn.close()
             seen: set[str] = set()
             for entry in data:
                 for name in re.split(r"[\n,]", entry.get("name_value", "")):
@@ -473,6 +488,9 @@ class TLSProbe:
         except Exception as exc:
             _log.debug("CT lookup failed: %s", exc)
             return []
+        finally:
+            if conn:
+                conn.close()
 
     # ── Full scan ─────────────────────────────────────────────────────────────
 

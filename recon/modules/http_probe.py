@@ -579,7 +579,15 @@ class HTTPProbe:
                 conn.request(method, path, headers=_headers)
                 resp = conn.getresponse()
                 status = resp.status
-                hdrs = {k.lower(): v for k, v in resp.getheaders()}
+                # A dict comprehension here would keep only the *last*
+                # occurrence of repeated headers (e.g. multiple
+                # Set-Cookie lines); analyze_cookies() below explicitly
+                # expects them comma-joined, so merge duplicates instead
+                # of overwriting.
+                hdrs: dict[str, str] = {}
+                for hk, hv in resp.getheaders():
+                    hk = hk.lower()
+                    hdrs[hk] = f"{hdrs[hk]}, {hv}" if hk in hdrs else hv
                 body = resp.read(8192).decode("utf-8", errors="replace")
                 conn.close()
 

@@ -19,6 +19,7 @@ Capabilities:
 from __future__ import annotations
 
 import os
+import re
 import socket
 import struct
 import threading
@@ -372,15 +373,16 @@ class SNMPEnumerator:
     # ── low-level send / receive ──────────────────────────────────────────────
 
     def _send(self, pkt: bytes) -> bytes | None:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             sock.settimeout(self._timeout)
             sock.sendto(pkt, (self.target, self.port))
             data, _ = sock.recvfrom(65535)
-            sock.close()
             return data
         except Exception:
             return None
+        finally:
+            sock.close()
 
     def _get(self, community: str, oids: list[str]) -> list[tuple[str, Any]]:
         self._req_id += 1
@@ -680,6 +682,3 @@ class SNMPEnumerator:
             console.print(f"\n  Software ({len(r.software)}): "
                           + ", ".join(r.software[:10])
                           + ("…" if len(r.software) > 10 else ""))
-
-
-import re

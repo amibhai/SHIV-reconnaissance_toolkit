@@ -292,23 +292,32 @@ class VulnScanner:
 
     def _test_tls_protocol(self, port: int, proto_name: str) -> bool:
         """Check if a specific TLS protocol version is accepted."""
+        # SSLv3 has no TLSVersion enum member at all in the modern ssl
+        # module (Python's SSLContext API has no way to force it), so
+        # this specific protocol genuinely can't be probed this way.
+        if proto_name == "SSLv3":
+            return False
+
         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
 
-        # Force specific version
-        if proto_name == "TLSv1.3":
-            ctx.minimum_version = ssl.TLSVersion.TLSv1_3
-            ctx.maximum_version = ssl.TLSVersion.TLSv1_3
-        elif proto_name == "TLSv1.2":
-            if hasattr(ssl.TLSVersion, "TLSv1_2"):
-                ctx.minimum_version = ssl.TLSVersion.TLSv1_2
-                ctx.maximum_version = ssl.TLSVersion.TLSv1_2
-        elif proto_name in ("TLSv1.1", "TLSv1.0", "SSLv3"):
-            # These are disabled in modern Python; skip gracefully
+        version_attr = {
+            "TLSv1.3": "TLSv1_3",
+            "TLSv1.2": "TLSv1_2",
+            "TLSv1.1": "TLSv1_1",
+            "TLSv1.0": "TLSv1",
+        }.get(proto_name)
+        if version_attr is None or not hasattr(ssl.TLSVersion, version_attr):
             return False
 
         try:
+            # Force this exact version; OpenSSL's security level may
+            # reject TLSv1.0/1.1 here (raising) or at handshake time
+            # (below) depending on build — both mean "not supported".
+            version = getattr(ssl.TLSVersion, version_attr)
+            ctx.minimum_version = version
+            ctx.maximum_version = version
             with socket.create_connection((self.target, port), timeout=self.config.timeout) as raw:
                 with ctx.wrap_socket(raw, server_hostname=self.target):
                     return True
@@ -508,13 +517,17 @@ class VulnScanner:
         """Perform a HEAD request and return parsed response headers."""
         try:
             raw = socket.create_connection((self.target, port), timeout=self.config.timeout)
-            if use_tls:
-                ctx = ssl.create_default_context()
-                ctx.check_hostname = False
-                ctx.verify_mode = ssl.CERT_NONE
-                conn = ctx.wrap_socket(raw, server_hostname=self.target)
-            else:
-                conn = raw
+            try:
+                if use_tls:
+                    ctx = ssl.create_default_context()
+                    ctx.check_hostname = False
+                    ctx.verify_mode = ssl.CERT_NONE
+                    conn = ctx.wrap_socket(raw, server_hostname=self.target)
+                else:
+                    conn = raw
+            except Exception:
+                raw.close()
+                raise
             with conn:
                 conn.sendall(
                     f"GET / HTTP/1.0\r\nHost: {self.target}\r\nConnection: close\r\n\r\n".encode()
@@ -537,7 +550,8 @@ class VulnScanner:
             for line in header_block.splitlines()[1:]:
                 if ":" in line:
                     k, _, v = line.partition(":")
-                    headers[k.strip()] = v.strip()
+                    k, v = k.strip(), v.strip()
+                    headers[k] = f"{headers[k]}, {v}" if k in headers else v
             return headers
         except Exception as exc:
             _log.debug("HTTP header fetch error port %d: %s", port, exc)
@@ -643,18 +657,22 @@ class VulnScanner:
             return False, ""
 
     def _try_ssh(self, port: int, user: str, passwd: str) -> tuple[bool, str]:
+        import paramiko
+        client = paramiko.SSHClient()
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         try:
-            import paramiko
-            client = paramiko.SSHClient()
-            client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             client.connect(
                 self.target, port=port, username=user, password=passwd,
                 timeout=self.config.timeout, allow_agent=False, look_for_keys=False,
             )
-            client.close()
             return True, f"SSH login succeeded: {user}@{self.target}:{port}"
         except Exception:
             return False, ""
+        finally:
+            # Almost every credential attempt fails auth (the expected
+            # outcome), which previously skipped client.close() and
+            # leaked the transport/socket per attempt.
+            client.close()
 
     def _try_http_basic(
         self, port: int, user: str, passwd: str, tls: bool = False
@@ -663,13 +681,17 @@ class VulnScanner:
         cred = base64.b64encode(f"{user}:{passwd}".encode()).decode()
         try:
             raw = socket.create_connection((self.target, port), timeout=self.config.timeout)
-            if tls:
-                ctx = ssl.create_default_context()
-                ctx.check_hostname = False
-                ctx.verify_mode = ssl.CERT_NONE
-                conn = ctx.wrap_socket(raw, server_hostname=self.target)
-            else:
-                conn = raw
+            try:
+                if tls:
+                    ctx = ssl.create_default_context()
+                    ctx.check_hostname = False
+                    ctx.verify_mode = ssl.CERT_NONE
+                    conn = ctx.wrap_socket(raw, server_hostname=self.target)
+                else:
+                    conn = raw
+            except Exception:
+                raw.close()
+                raise
             with conn:
                 conn.sendall(
                     f"GET / HTTP/1.0\r\nHost: {self.target}\r\n"

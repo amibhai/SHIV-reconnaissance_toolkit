@@ -14,6 +14,7 @@ Capabilities:
 
 from __future__ import annotations
 
+import re
 import socket
 import struct
 import threading
@@ -263,21 +264,23 @@ class SMBEnumerator:
     def query_netbios(self) -> dict[str, Any]:
         """Send a NetBIOS NODE STATUS request via UDP 137."""
         req = _nb_stat_request()
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             sock.settimeout(self._timeout)
             sock.sendto(req, (self.target, 137))
             data, _ = sock.recvfrom(4096)
-            sock.close()
             return _parse_nb_stat(data)
         except Exception as exc:
             _log.debug("NetBIOS query failed: %s", exc)
             return {}
+        finally:
+            sock.close()
 
     # ── SMBv1 negotiate ───────────────────────────────────────────────────────
 
     def _smb1_negotiate(self) -> bytes | None:
         """Return raw SMBv1 negotiate response, or None on failure."""
+        s = None
         try:
             s = socket.create_connection((self.target, 445), timeout=self._timeout)
             s.sendall(_SMB1_NEGOTIATE)
@@ -290,10 +293,12 @@ class SMBEnumerator:
                 resp += chunk
                 if len(resp) > 200:
                     break
-            s.close()
             return resp if len(resp) > 4 else None
         except Exception:
             return None
+        finally:
+            if s:
+                s.close()
 
     def _parse_smb1_response(self, data: bytes) -> dict[str, Any]:
         result: dict[str, Any] = {}
@@ -319,6 +324,7 @@ class SMBEnumerator:
 
     def _smb2_negotiate(self) -> bytes | None:
         """Return raw SMBv2 negotiate response."""
+        s = None
         try:
             pkt = _smb2_negotiate()
             s = socket.create_connection((self.target, 445), timeout=self._timeout)
@@ -332,10 +338,12 @@ class SMBEnumerator:
                 resp += chunk
                 if len(resp) > 300:
                     break
-            s.close()
             return resp if len(resp) > 4 else None
         except Exception:
             return None
+        finally:
+            if s:
+                s.close()
 
     def _parse_smb2_response(self, data: bytes) -> dict[str, Any]:
         result: dict[str, Any] = {}
@@ -610,7 +618,3 @@ class SMBEnumerator:
                 )
             console.print("\n[bold]SMB Findings:[/]")
             console.print(t2)
-
-
-# ── local import (re) ─────────────────────────────────────────────────────────
-import re
