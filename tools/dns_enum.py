@@ -10,6 +10,7 @@ from utils.recon_utils import ScanResults, Progress
 
 try:
     import dns.resolver, dns.query, dns.zone, dns.rdatatype, dns.exception
+    import dns.message, dns.flags
     DNS_LIB = True
 except ImportError:
     DNS_LIB = False

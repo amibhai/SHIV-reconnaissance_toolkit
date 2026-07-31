@@ -93,26 +93,27 @@ class PingSweep:
                 except queue.Empty:
                     break
 
-                alive, ttl = False, 0
+                try:
+                    alive, ttl = False, 0
 
-                if SCAPY and os.geteuid() == 0:
-                    alive, ttl = self._scapy_ping(ip)
+                    if SCAPY and platform.system() != 'Windows' and os.geteuid() == 0:
+                        alive, ttl = self._scapy_ping(ip)
 
-                if not alive:
-                    alive, _ = self._sys_ping(ip)
+                    if not alive:
+                        alive, _ = self._sys_ping(ip)
 
-                if not alive:
-                    # Try TCP on 80, 443, 22
-                    for port in [80, 443, 22, 8080]:
-                        if self._tcp_ping(ip, port):
-                            alive = True
-                            break
+                    if not alive:
+                        # Try TCP on 80, 443, 22
+                        for port in [80, 443, 22, 8080]:
+                            if self._tcp_ping(ip, port):
+                                alive = True
+                                break
 
-                if alive:
-                    self._record(ip, ttl)
-
-                prog.update()
-                q.task_done()
+                    if alive:
+                        self._record(ip, ttl)
+                finally:
+                    prog.update()
+                    q.task_done()
 
         threads = [threading.Thread(target=worker, daemon=True)
                    for _ in range(min(self.threads, total))]

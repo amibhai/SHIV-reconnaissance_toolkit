@@ -114,8 +114,10 @@ class HostDiscovery:
     def _socket_ping(self, ip):
         """Fallback ICMP via subprocess ping"""
         import subprocess, platform
-        flag  = '-n' if platform.system().lower() == 'windows' else '-c'
-        cmd   = ['ping', flag, '1', '-W', '1', ip]
+        is_windows = platform.system().lower() == 'windows'
+        flag  = '-n' if is_windows else '-c'
+        wait  = ['-w', '1000'] if is_windows else ['-W', '1']
+        cmd   = ['ping', flag, '1', *wait, ip]
         ret   = subprocess.run(cmd, capture_output=True).returncode
         if ret == 0:
             self._record_host(ip, 'ICMP-ping', 0)

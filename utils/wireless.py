@@ -5,6 +5,7 @@ Auto-detects wireless adapters and configures monitor mode
 Used by all wireless-dependent reconnaissance tools
 """
 
+import platform
 import subprocess
 import os
 import sys
@@ -28,6 +29,9 @@ class WirelessManager:
     # ------------------------------------------------------------------ #
 
     def _check_root(self):
+        if platform.system() == 'Windows':
+            print("[!] Wireless monitor-mode features require Linux (iw/airmon-ng); unsupported on Windows")
+            sys.exit(1)
         if os.geteuid() != 0:
             print("[!] Root required for monitor mode operations")
             print("[!] Run with: sudo python3 wireless.py")

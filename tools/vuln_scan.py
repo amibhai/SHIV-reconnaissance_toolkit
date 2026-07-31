@@ -52,7 +52,7 @@ CVE_DATABASE = {
     ],
     'vsftpd': [
         {'version': '2.3.4',    'cve': 'CVE-2011-2523',  'severity': 'critical',
-         'cvss': 10.0,'description': 'Backdoor — smile smiley ':)' opens shell on 6200'},
+         'cvss': 10.0,'description': "Backdoor — smiley face ':)' trigger opens shell on port 6200"},
     ],
     'log4j': [
         {'version_max': '2.14.1','cve': 'CVE-2021-44228', 'severity': 'critical',
