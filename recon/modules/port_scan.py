@@ -6,7 +6,6 @@ Scan types implemented via raw Scapy sockets:
 - Connect (full TCP, no root required)
 - FIN, XMAS, NULL (stealth variants)
 - ACK (firewall detection)
-- Window (RST window analysis)
 - Maimon (FIN+ACK)
 - UDP (with service-specific payloads)
 
@@ -36,8 +35,12 @@ __all__ = ["PortScanner", "PortResult", "NMAP_TOP_1000"]
 
 _log = get_logger("port_scan")
 
-# Nmap top-1000 TCP ports — ordered by frequency in nmap-services
-NMAP_TOP_1000: list[int] = sorted(set([
+# Nmap top-1000 TCP ports — ordered by frequency in nmap-services.
+# dict.fromkeys() dedups while preserving that frequency order; a plain
+# sorted(set(...)) would instead reorder everything by ascending port
+# number, turning "top100" into "the 100 lowest port numbers" rather
+# than "the 100 most common services" (e.g. dropping 3389/RDP).
+NMAP_TOP_1000: list[int] = list(dict.fromkeys([
     # Top 100 (high frequency)
     80, 23, 443, 21, 22, 25, 3389, 110, 445, 139, 143, 53, 135, 3306, 8080,
     1723, 111, 995, 993, 5900, 1025, 587, 8888, 199, 1720, 465, 548, 113,
@@ -719,7 +722,7 @@ class PortScanner:
 
         Args:
             ports: Port spec (list, 'top100', 'all', '1-1024', '80,443').
-            scan_type: syn|connect|fin|xmas|null|ack|udp|window|maimon.
+            scan_type: syn|connect|fin|xmas|null|ack|udp|maimon.
             detect_services: Run service detection on open ports.
 
         Returns:
@@ -749,7 +752,13 @@ class PortScanner:
             "udp":     self.udp_scan,
         }
 
-        scanner = scan_map.get(scan_type, self.syn_scan)
+        scanner = scan_map.get(scan_type)
+        if scanner is None:
+            _log.warning(
+                "Unknown scan_type '%s' (expected one of %s) — falling back to SYN scan",
+                scan_type, "/".join(scan_map),
+            )
+            scanner = self.syn_scan
 
         with make_progress(f"Port scan ({scan_type})") as progress:
             task = progress.add_task("Scanning ports", total=len(port_list))

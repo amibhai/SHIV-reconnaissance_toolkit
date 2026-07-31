@@ -239,10 +239,10 @@ class AsyncScanner:
             return list(range(1, 65536))
         if spec == "top100":
             from recon.modules.port_scan import NMAP_TOP_1000
-            return sorted(NMAP_TOP_1000)[:100]
+            return NMAP_TOP_1000[:100]
         if spec == "top1000":
             from recon.modules.port_scan import NMAP_TOP_1000
-            return sorted(NMAP_TOP_1000)
+            return NMAP_TOP_1000[:1000]
         if spec == "top10000":
             # Common extended list
             return list(range(1, 10001))
@@ -263,7 +263,7 @@ class AsyncScanner:
         if not ports:
             # Default to top 1000
             from recon.modules.port_scan import NMAP_TOP_1000
-            return sorted(NMAP_TOP_1000)
+            return NMAP_TOP_1000[:1000]
 
         return sorted(set(p for p in ports if 1 <= p <= 65535))
 
@@ -312,16 +312,17 @@ class AsyncScanner:
 
         t0 = time.monotonic()
 
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
         try:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
             open_list = loop.run_until_complete(
                 self._scan_ports_async(host, port_list)
             )
-            loop.close()
         except Exception as exc:
             _log.error("Async scan error: %s", exc)
             open_list = []
+        finally:
+            loop.close()
 
         elapsed = time.monotonic() - t0
         self._result.open_ports = open_list
@@ -387,13 +388,14 @@ class AsyncScanner:
                     )
                     _log.info("  %s: [green]%s[/]", host, ports_str)
 
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
         try:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
             loop.run_until_complete(_scan_all())
-            loop.close()
         except Exception as exc:
             _log.error("Network scan error: %s", exc)
+        finally:
+            loop.close()
 
         live = {h: r for h, r in results.items() if r.open_ports}
         _log.info("[bold green]Network scan done[/]: %d/%d hosts with open ports",

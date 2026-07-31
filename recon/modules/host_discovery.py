@@ -336,7 +336,12 @@ class HostDiscovery:
         pkt = IP(dst=ip, ttl=random.randint(54, 128)) / ICMP(
             type=8, id=icmp_id, seq=random.randint(1, 65535)
         ) / payload
-        resp = sr1(pkt, timeout=self.config.timeout, verbose=False)
+        try:
+            resp = sr1(pkt, timeout=self.config.timeout, verbose=False)
+        except Exception as exc:
+            _log.debug("Raw ICMP echo probe failed for %s: %s", ip, exc)
+            return self._sys_ping(ip)
+
         if resp:
             h = self._get_or_create(ip)
             with self._lock:
@@ -346,7 +351,11 @@ class HostDiscovery:
 
         # ICMP timestamp fallback (type 13)
         ts_pkt = IP(dst=ip) / ICMP(type=13, id=icmp_id)
-        resp = sr1(ts_pkt, timeout=self.config.timeout, verbose=False)
+        try:
+            resp = sr1(ts_pkt, timeout=self.config.timeout, verbose=False)
+        except Exception as exc:
+            _log.debug("Raw ICMP timestamp probe failed for %s: %s", ip, exc)
+            return False
         return resp is not None
 
     def _sys_ping(self, ip: str) -> bool:
@@ -433,10 +442,12 @@ class HostDiscovery:
                 with socket.create_connection((ip, port), timeout=self.config.timeout):
                     open_ports.append(port)
                     alive = True
-            except (ConnectionRefusedError, socket.timeout):
-                # RST or timeout — host may still be up (RST = up, timeout = filtered/down)
-                if False:  # Can't distinguish RST from timeout in connect mode
-                    alive = True
+            except ConnectionRefusedError:
+                # Target actively sent RST — host is up even though the port is closed
+                alive = True
+            except socket.timeout:
+                # No response at all — filtered or host down, can't conclude either way
+                pass
             except OSError:
                 pass
         return alive, open_ports

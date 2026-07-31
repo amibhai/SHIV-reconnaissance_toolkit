@@ -176,6 +176,7 @@ class DNSEnumerator:
                 ns_ip = socket.gethostbyname(ns)
                 _log.info("Attempting AXFR against %s (%s)", ns, ns_ip)
                 zone = dns.zone.from_xfr(dns.query.xfr(ns_ip, self.domain, timeout=self.config.timeout))
+                ns_record_count = 0
                 for name, node in zone.nodes.items():
                     for rdataset in node.rdatasets:
                         rtype = dns.rdatatype.to_text(rdataset.rdtype)
@@ -189,7 +190,8 @@ class DNSEnumerator:
                             )
                             records.append(rec)
                             self._add_record(rec)
-                _log.info("[bold green]Zone transfer SUCCESS[/] from %s — %d records", ns, len(records))
+                            ns_record_count += 1
+                _log.info("[bold green]Zone transfer SUCCESS[/] from %s — %d records", ns, ns_record_count)
             except dns.exception.FormError:
                 _log.info("AXFR refused by %s", ns)
             except (ConnectionRefusedError, OSError, socket.error) as exc:
