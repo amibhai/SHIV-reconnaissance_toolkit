@@ -8,6 +8,7 @@ ScanReport dataclass that aggregates results across modules.
 from __future__ import annotations
 
 import csv
+import html
 import json
 import threading
 from dataclasses import dataclass, field
@@ -230,16 +231,18 @@ class OutputManager:
         """Minimal HTML fallback when Jinja2 or template is unavailable."""
         data = report.to_dict()
         path = self._path("html")
+        esc = html.escape
+        target = esc(str(data["target"]))
         lines = [
             "<!DOCTYPE html><html><head><meta charset='utf-8'>",
-            f"<title>Recon Report — {data['target']}</title>",
+            f"<title>Recon Report — {target}</title>",
             "<style>body{font-family:monospace;background:#1e1e1e;color:#d4d4d4;}",
             "table{border-collapse:collapse;width:100%;}",
             "th,td{border:1px solid #555;padding:6px 10px;}",
             "th{background:#333;}.critical{color:#f44;}.high{color:#f84;}",
             ".medium{color:#fa0;}.low{color:#8f8;}.info{color:#8cf;}</style></head>",
-            f"<body><h1>Recon Report: {data['target']}</h1>",
-            f"<p>Scan type: {data['scan_type']} | Duration: {data['duration_seconds']:.1f}s</p>",
+            f"<body><h1>Recon Report: {target}</h1>",
+            f"<p>Scan type: {esc(str(data['scan_type']))} | Duration: {data['duration_seconds']:.1f}s</p>",
             f"<p>Hosts: {data['summary']['hosts_found']} | "
             f"Findings: {data['summary']['findings']} | "
             f"Critical: {data['summary']['critical']}</p>",
@@ -249,13 +252,13 @@ class OutputManager:
             lines.append("<h2>Findings</h2><table><tr>")
             lines.append("<th>Severity</th><th>CVE</th><th>Service</th><th>Port</th><th>Description</th></tr>")
             for f in data["findings"]:
-                sev = f.get("severity", "info").lower()
+                sev = esc(str(f.get("severity", "info")).lower())
                 lines.append(
                     f"<tr><td class='{sev}'>{sev.upper()}</td>"
-                    f"<td>{f.get('cve','N/A')}</td>"
-                    f"<td>{f.get('service','')}</td>"
-                    f"<td>{f.get('port','')}</td>"
-                    f"<td>{f.get('description','')}</td></tr>"
+                    f"<td>{esc(str(f.get('cve', 'N/A')))}</td>"
+                    f"<td>{esc(str(f.get('service', '')))}</td>"
+                    f"<td>{esc(str(f.get('port', '')))}</td>"
+                    f"<td>{esc(str(f.get('description', '')))}</td></tr>"
                 )
             lines.append("</table>")
 
