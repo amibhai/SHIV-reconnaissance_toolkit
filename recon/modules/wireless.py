@@ -720,9 +720,20 @@ class WirelessManager:
                 pass
 
     def _signal_handler(self, signum: int, frame: Any) -> None:
-        """Handle SIGINT/SIGTERM for graceful shutdown."""
+        """Handle SIGINT/SIGTERM for graceful shutdown.
+
+        After restoring interfaces we re-raise the signal with the default
+        disposition so the process actually terminates. Returning normally
+        would let the interrupted call (e.g. a capture's sleep) resume on an
+        interface we just switched back to managed mode.
+        """
         _log.info("Signal %d received; restoring interfaces...", signum)
         self._cleanup()
+        try:
+            signal.signal(signum, signal.SIG_DFL)
+            os.kill(os.getpid(), signum)
+        except Exception:
+            raise KeyboardInterrupt
 
     def networks(self) -> list[WirelessNetwork]:
         """Return all discovered wireless networks."""

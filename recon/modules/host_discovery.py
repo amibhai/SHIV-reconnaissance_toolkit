@@ -192,6 +192,20 @@ class HostResult:
 # TTL OS hint                                                          #
 # ------------------------------------------------------------------ #
 
+def _ip_sort_key(ip: str) -> tuple[int, Any]:
+    """Sortable key that orders valid IPs numerically and hostnames alphabetically.
+
+    Mixing IPv4, IPv6 and hostnames in one list would otherwise produce an
+    unstable order (or ragged tuples). We bucket by address family first so
+    the ordering is always well-defined and total.
+    """
+    try:
+        addr = ipaddress.ip_address(ip)
+        return (addr.version, int(addr))
+    except ValueError:
+        return (99, ip)
+
+
 def _ttl_os_hint(ttl: int) -> str:
     if 60 <= ttl <= 65:
         return "Linux/Unix"
@@ -603,7 +617,7 @@ class HostDiscovery:
             with ThreadPoolExecutor(max_workers=enrich_threads) as pool:
                 list(pool.map(self._enrich_host, results))
 
-        results.sort(key=lambda h: tuple(int(o) for o in h.ip.split(".") if o.isdigit()))
+        results.sort(key=lambda h: _ip_sort_key(h.ip))
         _log.info(
             "[bold green]Discovery complete[/]: %d/%d hosts alive",
             len(results), len(hosts),
