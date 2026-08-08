@@ -18,18 +18,14 @@ Usage:
 from __future__ import annotations
 
 import json
-import sys
 import webbrowser
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
 import typer
-from rich.live import Live
-from rich.layout import Layout
 from rich.panel import Panel
 from rich.table import Table
-from rich.text import Text
 
 # -- Bootstrap logging before any module import ------------------------------
 from recon.core.logger import configure_logging, console, get_logger, print_banner
@@ -116,8 +112,16 @@ def dns(
     report = ScanReport(target=domain, scan_type="dns")
     for r in results.get("records", []):
         report.add_dns(r)
+    # Zone-transfer entries are DNS records too — a successful AXFR is often
+    # the most valuable output of the whole run, so don't drop it from the report.
+    for r in results.get("zone_transfer", []):
+        report.add_dns({**r, "source": "axfr"})
     for s in results.get("subdomains", []):
         report.add_subdomain(s)
+    if results.get("dnssec"):
+        report.metadata["dnssec"] = results["dnssec"]
+    if results.get("reverse_dns"):
+        report.metadata["reverse_dns"] = results["reverse_dns"]
     report.finalize()
 
     json_path = out.write_json(report)
@@ -297,7 +301,7 @@ def vulnscan(
     print_banner()
     cfg = _common_config(threads, timeout, output_dir, verbose=verbose, pcap=pcap)
 
-    from recon.modules.port_scan import PortScanner, _parse_port_spec
+    from recon.modules.port_scan import PortScanner
     from recon.modules.vuln_scan import VulnScanner
     from recon.core.logger import print_findings_table
 
@@ -318,7 +322,7 @@ def vulnscan(
     do_creds   = creds_check or all_checks
     do_misc    = misconfig or all_checks
     if not any([ssl_check, cve_check, creds_check, misconfig, all_checks]):
-        do_cve = do_misc = True  # default
+        do_cve = do_misc = do_ssl = True  # default sweep
 
     vscan = VulnScanner(target, cfg)
     findings = vscan.run_full(
@@ -326,6 +330,7 @@ def vulnscan(
         check_creds=do_creds,
         check_misconfig=do_misc,
         check_cve=do_cve,
+        check_ssl=do_ssl,
     )
 
     print_findings_table(
@@ -468,7 +473,7 @@ def full(
 
     # -- Stage 1: Host discovery ------------------------------------------
     console.rule("[bold cyan]Stage 1: Host Discovery[/bold cyan]")
-    from recon.modules.host_discovery import HostDiscovery, HostResult as HDiscResult
+    from recon.modules.host_discovery import HostDiscovery
 
     disc = HostDiscovery(target, cfg)
     hosts = disc.run_full(use_arp=status.is_root, use_icmp=True, use_tcp=True, use_udp=False)

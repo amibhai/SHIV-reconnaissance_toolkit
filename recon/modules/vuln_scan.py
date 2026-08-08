@@ -992,6 +992,7 @@ class VulnScanner:
         check_creds: bool = True,
         check_misconfig: bool = True,
         check_cve: bool = True,
+        check_ssl: bool = True,
     ) -> list[Finding]:
         """
         Run all vulnerability checks and return consolidated findings.
@@ -1002,6 +1003,8 @@ class VulnScanner:
             check_creds: Run default credential tests.
             check_misconfig: Run misconfiguration checks.
             check_cve: Run CVE matching.
+            check_ssl: Run SSL/TLS audit. When False, no TLS handshakes are
+                attempted even if TLS-looking ports are present.
 
         Returns:
             List of all Finding objects.
@@ -1013,15 +1016,18 @@ class VulnScanner:
             _log.info("CVE matching on %d services", len(port_results))
             self.check_all_ports(port_results)
 
-        if ssl_ports is None:
-            ssl_ports = [
-                pr["port"] for pr in port_results
-                if pr.get("service") in ("https", "ssl", "tls")
-                   or pr.get("port") in (443, 8443, 993, 995, 465)
-            ]
-        for sp in ssl_ports:
-            _log.info("SSL/TLS audit on port %d", sp)
-            self.ssl_audit(sp)
+        if check_ssl:
+            if ssl_ports is None:
+                ssl_ports = [
+                    pr["port"] for pr in port_results
+                    if pr.get("service") in ("https", "ssl", "tls")
+                       or pr.get("port") in (443, 8443, 993, 995, 465)
+                ]
+            # De-dup while preserving order so a service+well-known-port
+            # overlap doesn't audit the same port twice.
+            for sp in dict.fromkeys(ssl_ports):
+                _log.info("SSL/TLS audit on port %d", sp)
+                self.ssl_audit(sp)
 
         if check_creds:
             for pr in port_results:

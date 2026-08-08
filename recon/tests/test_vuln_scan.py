@@ -152,6 +152,39 @@ def test_anon_ftp(scanner):
     assert f.severity == "high"
 
 
+def test_run_full_skips_ssl_when_disabled(scanner):
+    """check_ssl=False must not trigger any TLS handshake, even on 443."""
+    ports = [{"port": 443, "service": "https", "banner": "", "version": ""}]
+    with patch.object(scanner, "ssl_audit") as mock_ssl:
+        scanner.run_full(
+            port_results=ports,
+            check_creds=False,
+            check_misconfig=False,
+            check_cve=False,
+            check_ssl=False,
+        )
+    mock_ssl.assert_not_called()
+
+
+def test_run_full_runs_ssl_when_enabled(scanner):
+    """check_ssl=True audits TLS-looking ports exactly once each."""
+    ports = [
+        {"port": 443, "service": "https", "banner": "", "version": ""},
+        {"port": 8080, "service": "http", "banner": "", "version": ""},
+    ]
+    with patch.object(scanner, "ssl_audit") as mock_ssl:
+        scanner.run_full(
+            port_results=ports,
+            check_creds=False,
+            check_misconfig=False,
+            check_cve=False,
+            check_ssl=True,
+        )
+    audited = {c.args[0] for c in mock_ssl.call_args_list}
+    assert audited == {443}
+    assert mock_ssl.call_count == 1
+
+
 def test_findings_sorted(scanner):
     """findings() returns results sorted by severity."""
     scanner._findings = [
