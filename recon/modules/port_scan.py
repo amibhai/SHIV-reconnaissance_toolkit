@@ -218,15 +218,19 @@ def _parse_port_spec(spec: str | int) -> list[int]:
 
 
 def _load_service_probes() -> list[dict[str, Any]]:
-    """Load service detection probes from data/service_probes.json."""
-    path = Path(__file__).parent.parent / "data" / "service_probes.json"
-    if path.exists():
-        try:
-            with open(path, encoding="utf-8") as f:
-                return json.load(f)
-        except Exception as exc:
-            _log.debug("service_probes.json load error: %s", exc)
-    return []
+    """Load service-detection probes via the shared, validated loader.
+
+    Delegates to recon.core.probes so a malformed probe database raises loudly
+    (and fails the data-integrity test / CI) rather than silently returning an
+    empty list and disabling service detection, as the old inline loader did.
+    """
+    from recon.core.probes import ProbeLoadError, load_probes
+
+    try:
+        return load_probes()
+    except ProbeLoadError as exc:
+        _log.error("service probe database unavailable: %s", exc)
+        return []
 
 
 _SERVICE_PROBES: list[dict[str, Any]] = []
@@ -654,6 +658,7 @@ class PortScanner:
             Tuple (service_name, version, banner).
         """
         probes = _get_probes()
+        from recon.core.probes import probe_payload
 
         for probe in probes:
             if "tcp" not in probe.get("protocol", "tcp"):
@@ -665,14 +670,17 @@ class PortScanner:
                     (self.target_ip, port), timeout=self.config.connect_timeout
                 ) as s:
                     s.settimeout(self.config.connect_timeout)
-                    probe_bytes = probe.get("probe_bytes", "")
-                    if probe_bytes:
-                        s.sendall(probe_bytes.encode("utf-8", errors="replace"))
+                    payload = probe_payload(probe, self.target_ip)
+                    if payload:
+                        s.sendall(payload)
                     data = s.recv(2048)
+                    # Match on a byte-faithful latin-1 view (1:1 codepoints) so
+                    # binary / NUL-byte probe patterns work; UTF-8 only for display.
+                    match_text = data.decode("latin-1", errors="replace")
                     banner = data.decode("utf-8", errors="replace").strip()
                     match_regex = probe.get("match_regex")
                     if match_regex:
-                        m = re.search(match_regex, banner)
+                        m = re.search(match_regex, match_text)
                         if m:
                             version = m.group("version") if "version" in m.groupdict() else ""
                             return probe.get("service_name", ""), version, banner[:300]

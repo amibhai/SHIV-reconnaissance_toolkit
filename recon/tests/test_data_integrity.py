@@ -68,3 +68,26 @@ def test_default_creds_is_valid_json():
     for svc in creds:
         assert "service" in svc and "credentials" in svc
         assert isinstance(svc["credentials"], list)
+
+
+# --- service_probes.json ---------------------------------------------------
+
+def test_service_probes_load_and_validate():
+    """Regression guard: the file used to be invalid JSON (raw hex-byte escapes),
+    which silently disabled ALL service detection. It must now parse, validate,
+    and expose the full probe set."""
+    from recon.core.probes import load_probes, validate_probes
+
+    probes = load_probes(force=True)
+    assert len(probes) == 34, f"expected 34 probes, got {len(probes)}"
+    assert validate_probes(probes) == []
+
+
+def test_service_probes_payloads_build():
+    """Every probe must produce bytes; {target} must be substituted in text."""
+    from recon.core.probes import load_probes, probe_payload
+
+    for probe in load_probes(force=True):
+        payload = probe_payload(probe, "scanme.example")
+        assert isinstance(payload, bytes)
+        assert b"{target}" not in payload
