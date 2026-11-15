@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "recon-toolkit"
+description = "Production-grade network reconnaissance suite (authorized use only)."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "Recon Toolkit Project" }]
+dynamic = ["version", "dependencies"]
+
+[project.urls]
+Homepage = "https://github.com/amibhai/SHIV-reconnaissance_toolkit"
+
+# NOTE: console_scripts (recon = recon.cli:app, recon-menu = recon.tui:main) are
+# added once those entry modules exist (engine/menu unification commits). Until
+# then the tool runs via `python recon.py` / `python menu.py`.
+
+[tool.setuptools.dynamic]
+version = { attr = "recon.__version__.__version__" }
+dependencies = { file = ["requirements.txt"] }
+
+[tool.setuptools.packages.find]
+# Only ship the `recon` package tree; the top-level recon.py / menu.py remain
+# runnable scripts and must not be mistaken for installable top-level modules.
+include = ["recon*"]
+
+[tool.pytest.ini_options]
+testpaths = ["recon/tests"]
+addopts = "-q"
+markers = [
+    "integration: test needs raw sockets / root / Npcap / a live target (skipped by default)",
+]
+filterwarnings = [
+    # pydantic v1 shim is incompatible with Python >=3.14; harmless for our use.
+    "ignore:Core Pydantic V1 functionality:UserWarning",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+# Conservative starter set; the lint job is non-blocking for now.
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]
