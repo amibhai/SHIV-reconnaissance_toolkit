@@ -162,7 +162,7 @@
   {
     "cve_id": "CVE-2021-44142",
     "service": "samba",
-    "version_regex": "Samba (?:4\\.[01[0-3])\\.",
+    "version_regex": "Samba 4[.](?:[0-9]|1[0-5])[.]",
     "cvss_score": 9.9,
     "severity": "critical",
     "description": "Out-of-bounds heap write in Samba vfs_fruit module allowing RCE as root",
@@ -332,7 +332,7 @@
   {
     "cve_id": "CVE-2018-1002105",
     "service": "kubernetes",
-    "version_regex": "Kubernetes[/ ](?:1\\.[0-9]\\.|1\\.1[012]\\.",
+    "version_regex": "Kubernetes[/ ](?:1[.][0-9][.]|1[.]1[012][.])",
     "cvss_score": 9.8,
     "severity": "critical",
     "description": "Privilege escalation in Kubernetes API server < 1.10.11 / 1.11.5 / 1.12.3",
@@ -362,7 +362,7 @@
   {
     "cve_id": "CVE-2021-26084",
     "service": "confluence",
-    "version_regex": "Confluence/(?:[0-6]\\.|7\\.[0-9]\\.|7\\.1[01]\\.",
+    "version_regex": "Confluence/(?:[0-6][.]|7[.][0-9][.]|7[.]1[01][.])",
     "cvss_score": 9.8,
     "severity": "critical",
     "description": "OGNL injection in Confluence Server/Data Center < 7.12.5 allowing unauthenticated RCE",
