@@ -335,8 +335,18 @@ class PortScanner:
             try:
                 ans, unans = sr(pkts, timeout=self.config.timeout, verbose=False)
             except Exception as exc:
-                _log.error("SYN scan batch error: %s", exc)
-                continue
+                # Raw send failed at runtime (Npcap present but unusable, an
+                # interface/permission issue the capability check can't see,
+                # etc). With no results yet, degrade to a connect scan instead
+                # of silently returning an empty list.
+                if not results:
+                    _log.warning(
+                        "SYN scan unavailable at runtime (%s); falling back to connect scan",
+                        exc,
+                    )
+                    return self.connect_scan(ports)
+                _log.error("SYN scan batch error after partial results: %s", exc)
+                break
 
             answered_ports: set[int] = set()
             for _, rcv in ans:
@@ -587,8 +597,8 @@ class PortScanner:
         try:
             ans, unans = sr(pkts, timeout=self.config.timeout, verbose=False)
         except Exception as exc:
-            _log.error("UDP scan error: %s", exc)
-            return []
+            _log.warning("Raw UDP scan unavailable at runtime (%s); using connect fallback", exc)
+            return self._udp_connect_scan(ports)
 
         closed_ports: set[int] = set()
         for _, rcv in ans:

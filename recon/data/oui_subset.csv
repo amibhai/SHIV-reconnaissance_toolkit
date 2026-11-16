@@ -1,0 +1,75 @@
+PREFIX,Vendor
+000C29,VMware
+005056,VMware
+001C14,VMware
+000569,VMware
+080027,VirtualBox (Oracle)
+0A0027,VirtualBox (Oracle)
+00155D,Microsoft (Hyper-V)
+000D3A,Microsoft
+0017FA,Microsoft
+0050F2,Microsoft
+525400,QEMU/KVM
+00163E,Xen
+001C42,Parallels
+001451,Apple
+0017F2,Apple
+3C0754,Apple
+000393,Apple
+002608,Apple
+F0DBF8,Apple
+A4B197,Apple
+001B21,Intel
+3CFDFE,Intel
+000E0C,Intel
+001517,Intel
+B4B686,Intel
+00000C,Cisco
+000142,Cisco
+001007,Cisco
+0025B4,Cisco
+00DEFB,Cisco
+0024E8,Dell
+00188B,Dell
+B8CA3A,Dell
+F8B156,Dell
+001321,Hewlett-Packard
+00306E,Hewlett-Packard
+009C02,Hewlett-Packard
+3863BB,Hewlett Packard Enterprise
+B827EB,Raspberry Pi Foundation
+DCA632,Raspberry Pi (Trading)
+E45F01,Raspberry Pi (Trading)
+28CDC1,Raspberry Pi (Trading)
+D83ADD,Raspberry Pi (Trading)
+000FB5,Netgear
+00146C,Netgear
+2C3033,Netgear
+50C7BF,TP-Link
+0027EB,TP-Link
+1C61B4,TP-Link
+002722,Ubiquiti
+044F17,Ubiquiti
+788A20,Ubiquiti
+FCECDA,Ubiquiti
+002566,Samsung
+0015B9,Samsung
+5CF6DC,Samsung
+00259E,Huawei
+48435A,Huawei
+0C37DC,Huawei
+001A11,Google
+3C5AB4,Google
+F4F5E8,Google
+0C47C9,Amazon Technologies
+44650D,Amazon Technologies
+FCA183,Amazon Technologies
+000585,Juniper Networks
+002688,Juniper Networks
+3C8AB0,Juniper Networks
+00E04C,Realtek
+001018,Broadcom
+00051A,3Com
+000C42,Routerboard (MikroTik)
+4C5E0C,Routerboard (MikroTik)
+E48D8C,Routerboard (MikroTik)

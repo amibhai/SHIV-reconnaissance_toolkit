@@ -1,22 +1,22 @@
 """
 recon.core.privilege — Privilege and capability checker.
 
-Checks for root/Administrator privileges and Linux capabilities
-(CAP_NET_RAW, CAP_NET_ADMIN) required for raw-socket operations.
-Gracefully degrades features rather than crashing.
+Checks for root/Administrator privileges, Linux capabilities (CAP_NET_RAW,
+CAP_NET_ADMIN), and — critically on Windows — the presence of a raw-packet
+backend (Npcap). Raw-socket features gracefully degrade rather than crash:
+a scanner asks ``can(feature)`` and falls back (e.g. SYN -> connect) when the
+real capability is absent.
 """
 
 from __future__ import annotations
 
 import os
 import platform
-import sys
 from dataclasses import dataclass, field
-from typing import Callable
 
 from recon.core.logger import console, get_logger
 
-__all__ = ["PrivilegeChecker", "require_privilege"]
+__all__ = ["PrivilegeChecker"]
 
 _log = get_logger("privilege")
 
@@ -40,8 +40,10 @@ _FEATURE_REQUIREMENTS: dict[str, dict] = {
 class CapabilityStatus:
     is_root: bool
     platform: str
-    cap_net_raw: bool
-    cap_net_admin: bool
+    cap_net_raw: bool          # effective raw-socket capability (platform-aware)
+    cap_net_admin: bool        # effective CAP_NET_ADMIN-class capability
+    has_npcap: bool = False    # Windows: a raw-packet backend (Npcap) is installed
+    raw_backend: str = "none"  # how raw access is obtained: root|cap_net_raw|npcap|none
     available_features: set[str] = field(default_factory=set)
     disabled_features: set[str] = field(default_factory=set)
 
@@ -61,79 +63,72 @@ class PrivilegeChecker:
         self._status: CapabilityStatus | None = None
 
     def check(self) -> CapabilityStatus:
-        """
-        Run privilege detection and return a CapabilityStatus.
-
-        Returns:
-            CapabilityStatus with available/disabled feature sets.
-        """
+        """Run privilege detection and return a CapabilityStatus."""
         plat = platform.system()
         is_root = self._detect_root(plat)
-        cap_raw = self._detect_cap("cap_net_raw", plat, is_root)
-        cap_admin = self._detect_cap("cap_net_admin", plat, is_root)
+        has_npcap = self._detect_npcap(plat)
+
+        # Effective raw-socket capability, per platform.
+        #   Linux  : root OR the specific capability (CAP_NET_RAW/ADMIN).
+        #   Windows: admin AND a raw backend (Npcap) — admin alone is NOT enough;
+        #            scapy's send paths fail at runtime without Npcap. Treating
+        #            admin as sufficient is why SYN scans silently returned [].
+        #   macOS/other: root (BPF access).
+        if plat == "Linux":
+            cap_raw = is_root or self._detect_cap("cap_net_raw", plat, is_root)
+            cap_admin = is_root or self._detect_cap("cap_net_admin", plat, is_root)
+            raw_backend = "root" if is_root else ("cap_net_raw" if cap_raw else "none")
+        elif plat == "Windows":
+            cap_raw = cap_admin = bool(is_root and has_npcap)
+            raw_backend = "npcap" if cap_raw else "none"
+        else:
+            cap_raw = cap_admin = is_root
+            raw_backend = "root" if is_root else "none"
 
         available: set[str] = set()
         disabled: set[str] = set()
-
         for feature, req in _FEATURE_REQUIREMENTS.items():
-            needs_root = req["root"]
-            needs_cap = req["cap"]
-
-            has_priv = (
-                (not needs_root)
-                or is_root
-                or (needs_cap == "CAP_NET_RAW" and cap_raw)
-                or (needs_cap == "CAP_NET_ADMIN" and cap_admin)
-            )
-            if has_priv:
-                available.add(feature)
+            if not req["root"]:
+                has_priv = True
+            elif req["cap"] == "CAP_NET_ADMIN":
+                has_priv = cap_admin
+            elif req["cap"] == "CAP_NET_RAW":
+                has_priv = cap_raw
             else:
-                disabled.add(feature)
+                has_priv = is_root
+            (available if has_priv else disabled).add(feature)
 
         self._status = CapabilityStatus(
             is_root=is_root,
             platform=plat,
             cap_net_raw=cap_raw,
             cap_net_admin=cap_admin,
+            has_npcap=has_npcap,
+            raw_backend=raw_backend,
             available_features=available,
             disabled_features=disabled,
         )
         return self._status
 
     def can(self, feature: str) -> bool:
-        """
-        Check if a specific feature is available given current privileges.
-
-        Args:
-            feature: Feature name from the requirements map.
-
-        Returns:
-            True if the feature is available.
-        """
+        """Return True if ``feature`` is available under current privileges."""
         if self._status is None:
             self.check()
         return feature in self._status.available_features  # type: ignore[union-attr]
 
     def warn_if_missing(self, feature: str) -> bool:
-        """
-        Check feature availability and emit a warning if missing.
-
-        Args:
-            feature: Feature name.
-
-        Returns:
-            True if available, False with a warning logged if not.
-        """
+        """Check feature availability and emit a warning if missing."""
         if self.can(feature):
             return True
         req = _FEATURE_REQUIREMENTS.get(feature, {})
         reason = req.get("reason", feature)
         _log.warning(
-            "Feature [bold]%s[/bold] disabled — requires %s for %s. "
-            "Re-run as root or grant CAP_NET_RAW/CAP_NET_ADMIN.",
+            "Feature %s disabled — requires %s for %s. "
+            "Re-run elevated (root/Administrator) or grant CAP_NET_RAW/CAP_NET_ADMIN%s.",
             feature,
             "root/Administrator" if req.get("root") else req.get("cap", "elevated privilege"),
             reason,
+            "; on Windows install Npcap" if self._status and self._status.platform == "Windows" else "",
         )
         return False
 
@@ -159,9 +154,15 @@ class PrivilegeChecker:
 
         console.print(table)
         console.print(
-            f"Running as root: [{'bold green' if s.is_root else 'yellow'}]"
-            f"{'yes' if s.is_root else 'no'}[/{'bold green' if s.is_root else 'yellow'}]"
+            f"Running as root/admin: [{'bold green' if s.is_root else 'yellow'}]"
+            f"{'yes' if s.is_root else 'no'}[/] · raw backend: "
+            f"[{'bold green' if s.raw_backend != 'none' else 'yellow'}]{s.raw_backend}[/]"
         )
+        if s.platform == "Windows" and not s.has_npcap:
+            console.print(
+                "[yellow]Npcap not detected — raw SYN/ARP/ICMP/FIN/UDP scans will "
+                "fall back to connect-based scanning. Install Npcap for full capability.[/yellow]"
+            )
 
     @staticmethod
     def _detect_root(plat: str) -> bool:
@@ -205,31 +206,28 @@ class PrivilegeChecker:
             pass
         return is_root
 
+    @staticmethod
+    def _detect_npcap(plat: str) -> bool:
+        """Detect a raw-packet backend (Npcap/WinPcap) on Windows.
 
-def require_privilege(feature: str) -> Callable:
-    """
-    Decorator that checks privilege before calling a function.
-
-    Args:
-        feature: Feature name to check.
-
-    Returns:
-        Decorator function.
-
-    Raises:
-        PermissionError: If the feature is not available.
-    """
-    checker = PrivilegeChecker()
-
-    def decorator(fn: Callable) -> Callable:
-        def wrapper(*args, **kwargs):
-            if not checker.warn_if_missing(feature):
-                raise PermissionError(
-                    f"Feature '{feature}' requires elevated privileges. "
-                    "Run as root or grant CAP_NET_RAW/CAP_NET_ADMIN."
-                )
-            return fn(*args, **kwargs)
-        wrapper.__name__ = fn.__name__
-        wrapper.__doc__ = fn.__doc__
-        return wrapper
-    return decorator
+        Administrator rights alone do not grant raw-socket access on Windows;
+        scapy needs Npcap (or legacy WinPcap). Checked by locating wpcap.dll,
+        then as a fallback by attempting to load it.
+        """
+        if plat != "Windows":
+            return False
+        root = os.environ.get("SystemRoot") or os.environ.get("WINDIR") or ""
+        if root:
+            candidates = [
+                os.path.join(root, "System32", "Npcap", "wpcap.dll"),
+                os.path.join(root, "SysWOW64", "Npcap", "wpcap.dll"),
+                os.path.join(root, "System32", "wpcap.dll"),
+            ]
+            if any(os.path.exists(c) for c in candidates):
+                return True
+        try:
+            import ctypes
+            ctypes.WinDLL("wpcap.dll")
+            return True
+        except Exception:
+            return False

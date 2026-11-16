@@ -91,3 +91,17 @@ def test_service_probes_payloads_build():
         payload = probe_payload(probe, "scanme.example")
         assert isinstance(payload, bytes)
         assert b"{target}" not in payload
+
+
+# --- oui_subset.csv --------------------------------------------------------
+
+def test_oui_db_present_and_parses():
+    path = DATA_DIR / "oui_subset.csv"
+    assert path.exists(), "oui_subset.csv missing -> MAC vendor lookup is dead"
+    import csv
+
+    with open(path, encoding="utf-8", newline="") as f:
+        rows = list(csv.DictReader(f))
+    assert len(rows) >= 20, f"expected a meaningful OUI subset, got {len(rows)}"
+    for r in rows:
+        assert len(r["PREFIX"]) == 6 and r["Vendor"]

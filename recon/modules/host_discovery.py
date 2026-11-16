@@ -373,19 +373,34 @@ class HostDiscovery:
         return resp is not None
 
     def _sys_ping(self, ip: str) -> bool:
-        """System ping fallback for non-root environments."""
-        import subprocess
+        """System ping fallback (used when raw ICMP is unavailable).
+
+        Uses per-OS flags and verifies a genuine reply. The old code always
+        passed `-W` (invalid on Windows, where the flag is `-w <ms>`), so ICMP
+        discovery found nothing on Windows; and Windows `ping` exits 0 even on
+        "Destination host unreachable", so the reply is confirmed from output.
+        """
         import platform
-        flag = "-n" if platform.system() == "Windows" else "-c"
+        import subprocess
+
+        system = platform.system()
+        timeout_s = max(1, int(self.config.timeout))
+        if system == "Windows":
+            cmd = ["ping", "-n", "1", "-w", str(timeout_s * 1000), ip]
+        elif system == "Darwin":
+            cmd = ["ping", "-c", "1", "-t", str(timeout_s), ip]
+        else:
+            cmd = ["ping", "-c", "1", "-W", str(timeout_s), ip]
         try:
-            result = subprocess.run(
-                ["ping", flag, "1", "-W", "1", ip],
-                capture_output=True,
-                timeout=self.config.timeout + 1,
-            )
-            return result.returncode == 0
+            result = subprocess.run(cmd, capture_output=True, timeout=self.config.timeout + 2)
         except Exception:
             return False
+        if result.returncode != 0:
+            return False
+        out = (result.stdout or b"").lower()
+        if system == "Windows":
+            return b"ttl=" in out
+        return b"ttl=" in out or b"bytes from" in out
 
     def icmp_sweep(self, hosts: list[str]) -> list[HostResult]:
         """
