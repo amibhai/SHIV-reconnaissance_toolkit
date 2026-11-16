@@ -608,6 +608,8 @@ def _emit_report(cfg: ReconConfig, report: ScanReport, prefix: str) -> None:
     base = f"{prefix}_{report.target.replace('/', '_').replace(':', '_')}_{ts}"
     out = OutputManager(cfg.output_dir, base)
     paths = out.write_all(report, cfg.report_formats or ["json", "html"])
+    for err in report.errors:
+        console.print(f"[red]! {err}[/red]")
     if report.raw_findings:
         print_findings_table(report.raw_findings, title=f"Findings: {report.target}")
     else:
@@ -648,7 +650,7 @@ def asyncscan(
     """[cyan]Async port scan[/cyan]: high-concurrency connect scan (no root)."""
     cfg = _common_config(threads, timeout, output_dir, verbose=verbose)
     from recon import engine
-    _emit_report(cfg, engine.run_async(target, cfg, ports=ports), "async")
+    _emit_report(cfg, engine.safe_run("asyncscan", target, cfg, ports=ports), "async")
 
 
 @app.command()
@@ -663,7 +665,7 @@ def httpprobe(
     """[cyan]HTTP probe[/cyan]: WAF/CDN/tech fingerprint, security headers, paths."""
     cfg = _common_config(timeout=timeout, output_dir=output_dir, verbose=verbose)
     from recon import engine
-    _emit_report(cfg, engine.run_http(target, cfg, port=port, use_ssl=tls or None), "http")
+    _emit_report(cfg, engine.safe_run("httpprobe", target, cfg, port=port, use_ssl=tls or None), "http")
 
 
 @app.command()
@@ -678,7 +680,7 @@ def tlsprobe(
     """[cyan]TLS probe[/cyan]: protocol/cipher enum, cert chain, CT logs."""
     cfg = _common_config(timeout=timeout, output_dir=output_dir, verbose=verbose)
     from recon import engine
-    _emit_report(cfg, engine.run_tls(target, cfg, port=port, ct=ct), "tls")
+    _emit_report(cfg, engine.safe_run("tlsprobe", target, cfg, port=port, ct=ct), "tls")
 
 
 @app.command()
@@ -692,7 +694,7 @@ def smbenum(
     """[cyan]SMB enumeration[/cyan]: dialects, signing, MS17-010/SMBGhost pre-checks."""
     cfg = _common_config(timeout=timeout, output_dir=output_dir, verbose=verbose)
     from recon import engine
-    _emit_report(cfg, engine.run_smb(target, cfg, check_vulns=not no_vulns), "smb")
+    _emit_report(cfg, engine.safe_run("smbenum", target, cfg, check_vulns=not no_vulns), "smb")
 
 
 @app.command()
@@ -706,10 +708,18 @@ def snmpenum(
     """[cyan]SNMP enumeration[/cyan]: community brute, sysInfo, interfaces, routes."""
     cfg = _common_config(timeout=timeout, output_dir=output_dir, verbose=verbose)
     from recon import engine
-    _emit_report(cfg, engine.run_snmp(target, cfg, community=community), "snmp")
+    _emit_report(cfg, engine.safe_run("snmpenum", target, cfg, community=community), "snmp")
 
 
 # -- Entry point -------------------------------------------------------------
 
 if __name__ == "__main__":
-    app()
+    try:
+        app()
+    except KeyboardInterrupt:
+        console.print()
+        console.print("[yellow]Interrupted.[/yellow]")
+        raise SystemExit(130)
+    except Exception as exc:  # last resort: a clean message, never a traceback
+        console.print(f"[red]Error: {exc}[/red]")
+        raise SystemExit(1)

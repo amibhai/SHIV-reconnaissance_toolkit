@@ -43,3 +43,30 @@ def test_run_async_builds_report_localhost():
     assert report.scan_type == "async"
     assert "async_scan" in report.metadata
     assert len(report.hosts) == 1 and report.hosts[0].ip == "127.0.0.1"
+
+
+def test_safe_run_never_raises_on_module_failure():
+    from recon.core.registry import ScannerSpec, register, REGISTRY
+
+    def boom(target, config=None, **opts):
+        raise RuntimeError("module exploded")
+
+    register(ScannerSpec("boomtest", "always fails", None, boom, 999))
+    try:
+        report = engine.safe_run("boomtest", "10.0.0.1")
+        assert report.scan_type == "boomtest"
+        assert any("boomtest failed" in e for e in report.errors)
+        assert report.end_time is not None  # finalized
+    finally:
+        REGISTRY.pop("boomtest", None)
+
+
+def test_safe_run_unknown_capability_is_reported():
+    report = engine.safe_run("does-not-exist", "10.0.0.1")
+    assert any("not runnable" in e for e in report.errors)
+
+
+def test_safe_run_wireless_has_no_runner_is_reported():
+    # wireless is registered without a runner -> reported, not crashed.
+    report = engine.safe_run("wireless", "10.0.0.1")
+    assert any("not runnable" in e for e in report.errors)

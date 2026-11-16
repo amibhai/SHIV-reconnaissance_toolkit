@@ -72,11 +72,9 @@ def _run_spec(spec, cfg: ReconConfig) -> None:
 
     opts = _collect_options(spec)
     console.print(f"\n[cyan]Running {spec.name} on {target} …[/cyan]")
-    try:
-        report = spec.runner(target, cfg, **opts)
-    except Exception as exc:  # a scan failure must not kill the menu
-        console.print(f"[red]{spec.name} failed: {exc}[/red]")
-        return
+    report = engine.safe_run(spec, target, cfg, **opts)  # never raises
+    for err in report.errors:
+        console.print(f"[red]! {err}[/red]")
 
     ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     base = f"{spec.name}_{target.replace('/', '_').replace(':', '_')}_{ts}"

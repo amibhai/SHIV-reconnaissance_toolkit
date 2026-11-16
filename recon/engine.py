@@ -25,7 +25,7 @@ from recon.core.registry import ScannerSpec, register
 __all__ = [
     "run_dns", "run_discover", "run_os", "run_portscan", "run_vulnscan", "run_full",
     "run_async", "run_http", "run_tls", "run_smb", "run_snmp",
-    "coerce_findings",
+    "coerce_findings", "safe_run",
 ]
 
 _log = get_logger("engine")
@@ -297,6 +297,33 @@ def run_full(target: str, config: ReconConfig | None = None, **_: Any) -> ScanRe
                 report.add_finding(finding)
     report.finalize()
     return report
+
+
+def safe_run(spec_or_name, target: str, config: ReconConfig | None = None, **opts: Any) -> ScanReport:
+    """Run a capability and NEVER raise.
+
+    Looks up the ScannerSpec (by name or object), runs it, and on any failure
+    returns a ScanReport whose `errors` records what went wrong — so a broken
+    module, bad target or network error degrades to a clean, reportable result
+    instead of a traceback. This is the entry point both front-ends use.
+    """
+    from recon.core.registry import get
+
+    spec = spec_or_name if hasattr(spec_or_name, "runner") else get(spec_or_name)
+    name = getattr(spec, "name", str(spec_or_name))
+    if spec is None or spec.runner is None:
+        report = _report(target, name)
+        report.errors.append(f"capability {name!r} is not runnable")
+        report.finalize()
+        return report
+    try:
+        return spec.runner(target, config, **opts)
+    except Exception as exc:  # fail-safe: no scan failure crashes the tool
+        _log.error("%s failed on %s: %s", name, target, exc)
+        report = _report(target, name)
+        report.errors.append(f"{name} failed: {exc}")
+        report.finalize()
+        return report
 
 
 # --------------------------------------------------------------------------- #
