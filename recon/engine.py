@@ -23,6 +23,7 @@ from recon.core.output import HostResult, ScanReport
 from recon.core.registry import ScannerSpec, register
 
 __all__ = [
+    "run_dns", "run_discover", "run_os", "run_portscan", "run_vulnscan", "run_full",
     "run_async", "run_http", "run_tls", "run_smb", "run_snmp",
     "coerce_findings",
 ]
@@ -164,19 +165,154 @@ def run_snmp(target: str, config: ReconConfig | None = None, *, community: str |
 
 
 # --------------------------------------------------------------------------- #
-# Registry — every capability is declared here (CLI commands keep their own     #
-# explicit bodies; those without a runner are invoked via their Typer command). #
+# Adapters for the core capabilities                                           #
+# --------------------------------------------------------------------------- #
+
+def run_portscan(target: str, config: ReconConfig | None = None, *, ports: str = "top1000",
+                 scan_type: str = "connect", detect_services: bool = True, **_: Any) -> ScanReport:
+    from recon.modules.port_scan import PortScanner
+
+    cfg = config or ReconConfig()
+    report = _report(target, "portscan")
+    results = PortScanner(target, cfg).scan_ports(
+        ports=ports, scan_type=scan_type, detect_services=detect_services)
+    host = HostResult(ip=target)
+    host.ports = [r.to_dict() for r in results if r.state != "closed"]
+    report.add_host(host)
+    report.metadata["ports_spec"] = ports
+    report.finalize()
+    return report
+
+
+def run_vulnscan(target: str, config: ReconConfig | None = None, *, ports: str | None = None,
+                 **_: Any) -> ScanReport:
+    from recon.modules.port_scan import PortScanner
+    from recon.modules.vuln_scan import VulnScanner
+
+    cfg = config or ReconConfig()
+    report = _report(target, "vulnscan")
+    port_results = [r.to_dict() for r in PortScanner(target, cfg).scan_ports(
+        ports=ports or "top100", scan_type="connect", detect_services=True)]
+    for finding in VulnScanner(target, cfg).run_full(
+        port_results=port_results, check_creds=True, check_misconfig=True,
+        check_cve=True, check_ssl=True,
+    ):
+        report.add_finding(finding)  # canonical Finding; add_finding coerces
+    report.finalize()
+    return report
+
+
+def run_dns(target: str, config: ReconConfig | None = None, **_: Any) -> ScanReport:
+    from recon.modules.dns_enum import DNSEnumerator
+
+    cfg = config or ReconConfig()
+    report = _report(target, "dns")
+    results = DNSEnumerator(target, cfg).run_full(
+        do_zone=True, do_brute=True, do_records=True, do_dnssec=True)
+
+    def _d(obj):
+        return obj.to_dict() if hasattr(obj, "to_dict") else obj
+
+    for rec in results.get("records", []):
+        report.add_dns(_d(rec))
+    for rec in results.get("zone_transfer", []):
+        d = _d(rec)
+        report.add_dns({**d, "source": "axfr"} if isinstance(d, dict) else d)
+    for sub in results.get("subdomains", []):
+        report.add_subdomain(_d(sub))
+    if results.get("dnssec"):
+        report.metadata["dnssec"] = results["dnssec"]
+    report.finalize()
+    return report
+
+
+def run_os(target: str, config: ReconConfig | None = None, **_: Any) -> ScanReport:
+    from recon.modules.os_fingerprint import OSFingerprinter
+
+    cfg = config or ReconConfig()
+    report = _report(target, "os")
+    guess = OSFingerprinter(target, cfg).run_full()
+    report.add_host(HostResult(
+        ip=target, os_guess=getattr(guess, "os_guess", ""),
+        os_confidence=getattr(guess, "confidence", 0)))
+    report.metadata["os"] = {
+        "guess": getattr(guess, "os_guess", ""),
+        "confidence": getattr(guess, "confidence", 0),
+        "methods": getattr(guess, "methods", {}),
+    }
+    report.finalize()
+    return report
+
+
+def run_discover(target: str, config: ReconConfig | None = None, **_: Any) -> ScanReport:
+    from recon.modules.host_discovery import HostDiscovery
+    from recon.core.privilege import PrivilegeChecker
+
+    cfg = config or ReconConfig()
+    report = _report(target, "discover")
+    priv = PrivilegeChecker()
+    priv.check()
+    hosts = HostDiscovery(target, cfg).run_full(
+        use_arp=priv.can("arp_sweep"), use_icmp=True, use_tcp=True, use_udp=False)
+    for h in hosts:
+        report.add_host(HostResult(
+            ip=h.ip, hostname=getattr(h, "hostname", ""), mac=getattr(h, "mac", ""),
+            vendor=getattr(h, "vendor", ""), ttl=getattr(h, "ttl", 0),
+            methods=list(getattr(h, "methods", [])),
+            os_guess=getattr(h, "ttl_os_hint", "")))
+    report.finalize()
+    return report
+
+
+def run_full(target: str, config: ReconConfig | None = None, **_: Any) -> ScanReport:
+    """Pipeline: discover -> OS -> ports -> vulns, into one ScanReport."""
+    from recon.modules.host_discovery import HostDiscovery
+    from recon.modules.os_fingerprint import OSFingerprinter
+    from recon.modules.port_scan import PortScanner
+    from recon.modules.vuln_scan import VulnScanner
+    from recon.core.privilege import PrivilegeChecker
+
+    cfg = config or ReconConfig()
+    report = _report(target, "full")
+    priv = PrivilegeChecker()
+    status = priv.check()
+    hosts = HostDiscovery(target, cfg).run_full(
+        use_arp=status.is_root, use_icmp=True, use_tcp=True, use_udp=False)
+    scan_type = "syn" if priv.can("syn_scan") else "connect"
+    for h in hosts[:20]:
+        guess = OSFingerprinter(h.ip, cfg).run_full()
+        hr = HostResult(
+            ip=h.ip, hostname=getattr(h, "hostname", ""), mac=getattr(h, "mac", ""),
+            vendor=getattr(h, "vendor", ""), os_guess=getattr(guess, "os_guess", ""),
+            os_confidence=getattr(guess, "confidence", 0), ttl=getattr(h, "ttl", 0))
+        open_ports = PortScanner(h.ip, cfg).scan_ports(
+            ports="top1000", scan_type=scan_type, detect_services=True)
+        hr.ports = [r.to_dict() for r in open_ports if r.state != "closed"]
+        report.add_host(hr)
+        if hr.ports:
+            for finding in VulnScanner(h.ip, cfg).run_full(
+                port_results=hr.ports, check_creds=True, check_misconfig=True,
+                check_cve=True, check_ssl=True,
+            ):
+                report.add_finding(finding)
+    report.finalize()
+    return report
+
+
+# --------------------------------------------------------------------------- #
+# Registry — every capability is declared here with a runner so both front-ends #
+# (CLI `recon list`, the interactive menu) can enumerate and invoke them.        #
 # --------------------------------------------------------------------------- #
 
 def _register_all() -> None:
     specs = [
-        ScannerSpec("dns", "DNS enumeration: AXFR, brute-force, records, DNSSEC", None, None, 10),
-        ScannerSpec("discover", "Host discovery: ARP/ICMP/TCP/UDP sweep", None, None, 20),
-        ScannerSpec("os", "OS fingerprinting: TTL, TCP stack, banners", None, None, 30),
-        ScannerSpec("portscan", "Port scan: SYN/connect/FIN/XMAS/NULL/ACK/UDP", None, None, 40),
-        ScannerSpec("vulnscan", "Vulnerability scan: CVE, SSL, default creds, misconfig", None, None, 50),
+        ScannerSpec("dns", "DNS enumeration: AXFR, brute-force, records, DNSSEC", None, run_dns, 10),
+        ScannerSpec("discover", "Host discovery: ARP/ICMP/TCP/UDP sweep", None, run_discover, 20),
+        ScannerSpec("os", "OS fingerprinting: TTL, TCP stack, banners", None, run_os, 30),
+        ScannerSpec("portscan", "Port scan: SYN/connect/FIN/XMAS/NULL/ACK/UDP", None, run_portscan, 40),
+        ScannerSpec("vulnscan", "Vulnerability scan: CVE, SSL, default creds, misconfig", None, run_vulnscan, 50),
         ScannerSpec("wireless", "Wireless recon: monitor mode, 802.11 capture", "monitor_mode", None, 60),
-        ScannerSpec("full", "Full pipeline: discover -> OS -> ports -> vulns -> report", None, None, 70),
+        ScannerSpec("full", "Full pipeline: discover -> OS -> ports -> vulns -> report", None, run_full, 70),
         ScannerSpec("asyncscan", "High-concurrency async connect scan (no root)", None, run_async, 80),
         ScannerSpec("httpprobe", "HTTP: WAF/CDN/tech fingerprint, security headers, paths", None, run_http, 90),
         ScannerSpec("tlsprobe", "TLS: protocols, ciphers, cert chain, CT logs", None, run_tls, 100),
