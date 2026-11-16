@@ -598,6 +598,117 @@ def privcheck() -> None:
     priv.print_status()
 
 
+# -- Advanced-module commands (unified engine + reporting) -------------------
+
+def _emit_report(cfg: ReconConfig, report: ScanReport, prefix: str) -> None:
+    """Write a report in every configured format and show its findings."""
+    from recon.core.logger import print_findings_table
+
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    base = f"{prefix}_{report.target.replace('/', '_').replace(':', '_')}_{ts}"
+    out = OutputManager(cfg.output_dir, base)
+    paths = out.write_all(report, cfg.report_formats or ["json", "html"])
+    if report.raw_findings:
+        print_findings_table(report.raw_findings, title=f"Findings: {report.target}")
+    else:
+        console.print(f"[dim]No findings for {report.target}.[/dim]")
+    for fmt, path in paths.items():
+        console.print(f"[green]{fmt.upper()}:[/green] {path}")
+
+
+@app.command(name="list")
+def list_scanners() -> None:
+    """List every scanner capability and whether it is available here."""
+    from recon import engine  # noqa: F401 — populates the registry
+    from recon.core.registry import all_specs
+
+    priv = PrivilegeChecker()
+    priv.check()
+    table = Table(title="Recon Capabilities", border_style="dim")
+    table.add_column("Name", style="bold cyan")
+    table.add_column("Available", width=11)
+    table.add_column("Requires")
+    table.add_column("Summary")
+    for spec in all_specs():
+        ok = spec.required_feature is None or priv.can(spec.required_feature)
+        status = "[green]✓ yes[/green]" if ok else "[red]✗ no[/red]"
+        table.add_row(spec.name, status, spec.required_feature or "—", spec.summary)
+    console.print(table)
+
+
+@app.command()
+def asyncscan(
+    target:     str  = typer.Option(..., "-t", "--target", help="Target IP/hostname"),
+    ports:      str  = typer.Option("top1000", "-p", "--ports"),
+    threads:    int  = typer.Option(50, "--threads"),
+    timeout:    float = typer.Option(3.0, "--timeout"),
+    output_dir: Path = typer.Option(Path("./output"), "-o"),
+    verbose:    int  = typer.Option(1, "-v", count=True),
+) -> None:
+    """[cyan]Async port scan[/cyan]: high-concurrency connect scan (no root)."""
+    cfg = _common_config(threads, timeout, output_dir, verbose=verbose)
+    from recon import engine
+    _emit_report(cfg, engine.run_async(target, cfg, ports=ports), "async")
+
+
+@app.command()
+def httpprobe(
+    target:     str  = typer.Option(..., "-t", "--target", help="Target IP/hostname"),
+    port:       Optional[int] = typer.Option(None, "-p", "--port"),
+    tls:        bool = typer.Option(False, "--tls/--no-tls", help="Force HTTPS"),
+    timeout:    float = typer.Option(5.0, "--timeout"),
+    output_dir: Path = typer.Option(Path("./output"), "-o"),
+    verbose:    int  = typer.Option(1, "-v", count=True),
+) -> None:
+    """[cyan]HTTP probe[/cyan]: WAF/CDN/tech fingerprint, security headers, paths."""
+    cfg = _common_config(timeout=timeout, output_dir=output_dir, verbose=verbose)
+    from recon import engine
+    _emit_report(cfg, engine.run_http(target, cfg, port=port, use_ssl=tls or None), "http")
+
+
+@app.command()
+def tlsprobe(
+    target:     str  = typer.Option(..., "-t", "--target", help="Target IP/hostname"),
+    port:       int  = typer.Option(443, "-p", "--port"),
+    ct:         bool = typer.Option(False, "--ct", help="Query crt.sh CT logs"),
+    timeout:    float = typer.Option(5.0, "--timeout"),
+    output_dir: Path = typer.Option(Path("./output"), "-o"),
+    verbose:    int  = typer.Option(1, "-v", count=True),
+) -> None:
+    """[cyan]TLS probe[/cyan]: protocol/cipher enum, cert chain, CT logs."""
+    cfg = _common_config(timeout=timeout, output_dir=output_dir, verbose=verbose)
+    from recon import engine
+    _emit_report(cfg, engine.run_tls(target, cfg, port=port, ct=ct), "tls")
+
+
+@app.command()
+def smbenum(
+    target:     str  = typer.Option(..., "-t", "--target", help="Target IP/hostname"),
+    no_vulns:   bool = typer.Option(False, "--no-vulns", help="Skip EternalBlue/SMBGhost checks"),
+    timeout:    float = typer.Option(5.0, "--timeout"),
+    output_dir: Path = typer.Option(Path("./output"), "-o"),
+    verbose:    int  = typer.Option(1, "-v", count=True),
+) -> None:
+    """[cyan]SMB enumeration[/cyan]: dialects, signing, MS17-010/SMBGhost pre-checks."""
+    cfg = _common_config(timeout=timeout, output_dir=output_dir, verbose=verbose)
+    from recon import engine
+    _emit_report(cfg, engine.run_smb(target, cfg, check_vulns=not no_vulns), "smb")
+
+
+@app.command()
+def snmpenum(
+    target:     str  = typer.Option(..., "-t", "--target", help="Target IP/hostname"),
+    community:  Optional[str] = typer.Option(None, "--community", help="Community string (else brute-force)"),
+    timeout:    float = typer.Option(3.0, "--timeout"),
+    output_dir: Path = typer.Option(Path("./output"), "-o"),
+    verbose:    int  = typer.Option(1, "-v", count=True),
+) -> None:
+    """[cyan]SNMP enumeration[/cyan]: community brute, sysInfo, interfaces, routes."""
+    cfg = _common_config(timeout=timeout, output_dir=output_dir, verbose=verbose)
+    from recon import engine
+    _emit_report(cfg, engine.run_snmp(target, cfg, community=community), "snmp")
+
+
 # -- Entry point -------------------------------------------------------------
 
 if __name__ == "__main__":
