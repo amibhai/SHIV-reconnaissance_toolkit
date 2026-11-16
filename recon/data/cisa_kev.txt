@@ -1,0 +1,52 @@
+# CISA Known Exploited Vulnerabilities (KEV) — curated snapshot.
+# One CVE id per line. A finding whose CVE is listed here is flagged `kev=True`
+# (exploited in the wild) and prioritized in reports. This is a static snapshot
+# of well-established KEV entries; refresh from the authoritative feed:
+#   https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json
+# (jq -r '.vulnerabilities[].cveID' known_exploited_vulnerabilities.json)
+CVE-2021-41773
+CVE-2021-42013
+CVE-2021-26855
+CVE-2021-27065
+CVE-2021-44228
+CVE-2022-22965
+CVE-2022-26134
+CVE-2022-1388
+CVE-2019-19781
+CVE-2018-13379
+CVE-2019-11510
+CVE-2021-21985
+CVE-2022-22954
+CVE-2017-7494
+CVE-2014-0160
+CVE-2019-5736
+CVE-2022-27925
+CVE-2023-22515
+CVE-2021-26084
+CVE-2020-1472
+CVE-2021-34527
+CVE-2017-0144
+CVE-2019-0708
+CVE-2020-0796
+CVE-2021-40539
+CVE-2022-30525
+CVE-2022-40684
+CVE-2021-22986
+CVE-2023-46604
+CVE-2021-3156
+CVE-2021-4034
+CVE-2020-14750
+CVE-2017-5638
+CVE-2019-11043
+CVE-2014-6271
+CVE-2023-34362
+CVE-2023-3519
+CVE-2023-27997
+CVE-2024-3400
+CVE-2023-20198
+CVE-2023-4966
+CVE-2024-1709
+CVE-2023-2868
+CVE-2023-20273
+CVE-2022-41040
+CVE-2022-41082

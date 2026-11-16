@@ -11,14 +11,34 @@ from __future__ import annotations
 
 import re
 from enum import Enum
+from pathlib import Path
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
-__all__ = ["Severity", "Confidence", "Finding"]
+__all__ = ["Severity", "Confidence", "Finding", "load_kev"]
 
 _CVE_RE = re.compile(r"CVE-\d{4}-\d{3,7}", re.IGNORECASE)
 
 _SEVERITY_RANK = {"critical": 5, "high": 4, "medium": 3, "low": 2, "info": 1}
+
+_KEV_PATH = Path(__file__).resolve().parent.parent / "data" / "cisa_kev.txt"
+_kev_cache: set[str] | None = None
+
+
+def load_kev() -> set[str]:
+    """CVE ids in CISA's Known Exploited Vulnerabilities catalog (cached)."""
+    global _kev_cache
+    if _kev_cache is None:
+        ids: set[str] = set()
+        try:
+            for line in _KEV_PATH.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if line and not line.startswith("#"):
+                    ids.add(line.upper())
+        except OSError:
+            pass
+        _kev_cache = ids
+    return _kev_cache
 
 
 class Severity(str, Enum):
@@ -65,6 +85,13 @@ class Finding(BaseModel):
     evidence: str = ""
     references: list[str] = Field(default_factory=list)
     remediation: str = ""
+    kev: bool = False  # CVE is in CISA's Known Exploited Vulnerabilities catalog
+
+    @model_validator(mode="after")
+    def _tag_kev(self) -> "Finding":
+        if not self.kev and self.cve and any(c.upper() in load_kev() for c in self.cve):
+            self.kev = True
+        return self
 
     def to_dict(self) -> dict:
         """Canonical serialization consumed by the report, HTML, CSV, SARIF, NDJSON."""
@@ -75,6 +102,7 @@ class Finding(BaseModel):
             "confidence": self.confidence.value,
             "cve": list(self.cve),
             "cvss": self.cvss,
+            "kev": self.kev,
             "host": self.host,
             "port": self.port,
             "service": self.service,

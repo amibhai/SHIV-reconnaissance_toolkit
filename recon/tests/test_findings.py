@@ -61,3 +61,14 @@ def test_scanreport_severity_counts_and_summary():
     assert counts["critical"] == 1 and counts["medium"] == 2
     summary = r.to_dict()["summary"]
     assert summary["critical"] == 1 and summary["medium"] == 2 and summary["info"] == 0
+
+
+def test_kev_auto_tagging():
+    log4shell = Finding(id="CVE-2021-44228", title="Log4Shell", severity=Severity.critical,
+                        cve=["CVE-2021-44228"])
+    benign = Finding(id="CVE-2011-2523", title="vsftpd backdoor", severity=Severity.critical,
+                     cve=["CVE-2011-2523"])
+    assert log4shell.kev is True and log4shell.to_dict()["kev"] is True
+    assert benign.kev is False
+    # also via the legacy factory path
+    assert Finding.from_legacy(severity="high", finding="CVE-2019-0708", description="BlueKeep").kev is True

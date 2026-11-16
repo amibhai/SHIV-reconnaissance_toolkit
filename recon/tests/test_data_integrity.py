@@ -130,3 +130,16 @@ def test_port_specs_return_correct_counts():
     assert len(_parse_port_spec("top1000")) == 1000
     assert len(_parse_port_spec("top5000")) == 5000
     assert len(_parse_port_spec("top10000")) == 10000
+
+
+# --- cisa_kev.txt ----------------------------------------------------------
+
+def test_kev_file_parses_and_ids_well_formed():
+    import re as _re
+    from recon.core.findings import load_kev
+
+    kev = load_kev()
+    assert len(kev) >= 30, f"KEV set unexpectedly small: {len(kev)}"
+    assert all(_re.fullmatch(r"CVE-\d{4}-\d{3,7}", c) for c in kev)
+    # sanity: famous exploited CVEs are present
+    assert {"CVE-2021-44228", "CVE-2019-0708", "CVE-2020-1472"} <= kev

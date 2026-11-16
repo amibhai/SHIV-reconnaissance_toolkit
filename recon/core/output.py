@@ -388,7 +388,7 @@ class OutputManager:
                     "logicalLocations": [{"name": loc_name, "kind": "resource"}],
                     "physicalLocation": {"artifactLocation": {"uri": uri}},
                 }],
-                "properties": {k: f.get(k) for k in ("cvss", "confidence", "severity", "service")
+                "properties": {k: f.get(k) for k in ("cvss", "confidence", "severity", "service", "kev")
                                if f.get(k) is not None},
             })
         sarif = {

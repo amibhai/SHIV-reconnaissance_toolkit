@@ -795,6 +795,8 @@ def print_findings_table(findings: list[dict[str, Any]], title: str = "Findings"
         style = sev_styles.get(sev, "white")
         cve = f.get("cve")
         cve_str = ", ".join(cve) if isinstance(cve, list) else str(cve or "")
+        if f.get("kev"):
+            cve_str = (cve_str + "  [KEV]").strip()
         port = f.get("port")
         table.add_row(
             Text(sev.upper(), style=style),

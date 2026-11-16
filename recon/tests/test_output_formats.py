@@ -52,3 +52,20 @@ def test_write_all_honors_formats_and_is_atomic(tmp_path, report):
     for p in out.values():
         assert p.exists()
     assert not list(tmp_path.glob(".tmp_*")), "atomic write left a temp file behind"
+
+
+def test_sarif_and_ndjson_carry_kev(tmp_path):
+    from recon.core.findings import Finding, Severity
+    from recon.core.output import OutputManager, ScanReport
+    import json as _json
+
+    r = ScanReport(target="10.0.0.1", scan_type="vulnscan")
+    r.add_finding(Finding(id="CVE-2021-44228", title="Log4Shell", severity=Severity.critical,
+                          cve=["CVE-2021-44228"], host="10.0.0.1", port=8080, service="http"))
+    r.finalize()
+    mgr = OutputManager(tmp_path, "kev")
+    sarif = _json.loads(mgr.write_sarif(r).read_text(encoding="utf-8"))
+    assert sarif["runs"][0]["results"][0]["properties"]["kev"] is True
+    ndjson = mgr.write_ndjson(r).read_text(encoding="utf-8")
+    finding_line = [l for l in ndjson.splitlines() if '"type": "finding"' in l][0]
+    assert _json.loads(finding_line)["kev"] is True

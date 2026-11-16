@@ -1055,4 +1055,7 @@ class VulnScanner:
         """Return all findings sorted by severity."""
         sev_order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
         with self._lock:
-            return sorted(self._findings, key=lambda f: sev_order.get(f.severity, 5))
+            return sorted(
+                self._findings,
+                key=lambda f: (sev_order.get(f.severity, 5), 0 if getattr(f, "kev", False) else 1),
+            )
