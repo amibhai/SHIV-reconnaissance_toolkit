@@ -105,3 +105,28 @@ def test_oui_db_present_and_parses():
     assert len(rows) >= 20, f"expected a meaningful OUI subset, got {len(rows)}"
     for r in rows:
         assert len(r["PREFIX"]) == 6 and r["Vendor"]
+
+
+# --- nmap_top_ports.txt ----------------------------------------------------
+
+def test_top_ports_file_is_correct():
+    """Regression guard: 'top1000' used to be 437 ports; 'top10000' was 1..10000."""
+    path = DATA_DIR / "nmap_top_ports.txt"
+    assert path.exists(), "nmap_top_ports.txt missing"
+    ports = [int(x) for x in path.read_text(encoding="utf-8").split() if not x.startswith("#")]
+    assert len(ports) >= 10000, f"need >=10000 ports, got {len(ports)}"
+    assert len(ports) == len(set(ports)), "top-ports list has duplicates"
+    assert all(1 <= p <= 65535 for p in ports)
+    # high-value services must be inside the top-1000 slice
+    for sentinel in (22, 80, 443, 445, 3389, 3306, 8080):
+        assert sentinel in ports[:1000], f"{sentinel} not in top-1000"
+
+
+def test_port_specs_return_correct_counts():
+    from recon.modules.port_scan import _parse_port_spec
+
+    assert len(_parse_port_spec("top20")) == 20
+    assert len(_parse_port_spec("top100")) == 100
+    assert len(_parse_port_spec("top1000")) == 1000
+    assert len(_parse_port_spec("top5000")) == 5000
+    assert len(_parse_port_spec("top10000")) == 10000

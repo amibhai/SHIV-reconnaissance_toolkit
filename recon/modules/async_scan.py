@@ -237,15 +237,9 @@ class AsyncScanner:
 
         if spec == "all":
             return list(range(1, 65536))
-        if spec == "top100":
+        if spec in ("top20", "top100", "top1000", "top5000", "top10000"):
             from recon.modules.port_scan import NMAP_TOP_1000
-            return NMAP_TOP_1000[:100]
-        if spec == "top1000":
-            from recon.modules.port_scan import NMAP_TOP_1000
-            return NMAP_TOP_1000[:1000]
-        if spec == "top10000":
-            # Common extended list
-            return list(range(1, 10001))
+            return NMAP_TOP_1000[: int(spec[3:])]
 
         ports: list[int] = []
 
