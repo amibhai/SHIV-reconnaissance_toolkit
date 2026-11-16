@@ -108,6 +108,9 @@
     <div class="card neutral"><div class="num">{{ report.summary.findings }}</div><div class="label">Total Findings</div></div>
     <div class="card critical"><div class="num">{{ report.summary.critical }}</div><div class="label">Critical</div></div>
     <div class="card high"><div class="num">{{ report.summary.high }}</div><div class="label">High</div></div>
+    <div class="card medium"><div class="num">{{ report.summary.medium or 0 }}</div><div class="label">Medium</div></div>
+    <div class="card low"><div class="num">{{ report.summary.low or 0 }}</div><div class="label">Low</div></div>
+    <div class="card info-card"><div class="num">{{ report.summary.info or 0 }}</div><div class="label">Info</div></div>
   </div>
 
   <!-- Findings -->
@@ -118,10 +121,12 @@
       <table id="findings-table">
         <thead><tr>
           <th onclick="sortTable('findings-table',0)">Severity</th>
-          <th onclick="sortTable('findings-table',1)">CVE / Finding</th>
-          <th onclick="sortTable('findings-table',2)">Service</th>
-          <th onclick="sortTable('findings-table',3)">Port</th>
-          <th onclick="sortTable('findings-table',4)">Description</th>
+          <th onclick="sortTable('findings-table',1)">ID / CVE</th>
+          <th onclick="sortTable('findings-table',2)">CVSS</th>
+          <th onclick="sortTable('findings-table',3)">Conf.</th>
+          <th onclick="sortTable('findings-table',4)">Service</th>
+          <th onclick="sortTable('findings-table',5)">Port</th>
+          <th onclick="sortTable('findings-table',6)">Title</th>
           <th>Remediation</th>
           <th>Evidence</th>
         </tr></thead>
@@ -129,10 +134,12 @@
           {% for f in report.findings %}
           <tr>
             <td><span class="badge {{ f.severity }}">{{ f.severity|upper }}</span></td>
-            <td>{{ f.cve }}</td>
+            <td>{% if f.cve %}{% for c in f.cve %}<a href="https://nvd.nist.gov/vuln/detail/{{ c }}">{{ c }}</a>{% if not loop.last %}, {% endif %}{% endfor %}{% else %}{{ f.id }}{% endif %}</td>
+            <td>{{ f.cvss if f.cvss is not none else '' }}</td>
+            <td>{{ f.confidence }}</td>
             <td>{{ f.service }}</td>
-            <td>{{ f.port }}</td>
-            <td>{{ f.description }}</td>
+            <td>{{ f.port if f.port is not none else '' }}</td>
+            <td>{{ f.title }}{% if f.references %}<br><small>{% for r in f.references %}<a href="{{ r }}">ref</a>{% if not loop.last %} {% endif %}{% endfor %}</small>{% endif %}</td>
             <td>{{ f.remediation }}</td>
             <td>{% if f.evidence %}<div class="evidence">{{ f.evidence }}</div>{% endif %}</td>
           </tr>

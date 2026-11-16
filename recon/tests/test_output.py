@@ -109,3 +109,32 @@ def test_thread_safety(tmp_path):
 
     assert not errors
     assert len(report.raw_findings) == 500
+
+
+def test_write_html_jinja_renders_canonical_findings(tmp_path):
+    """Exercise the Jinja template path (not just the fallback) with a Finding."""
+    from recon.core.findings import Finding, Severity
+
+    report = ScanReport(target="10.0.0.1", scan_type="full")
+    report.add_finding(Finding(
+        id="CVE-2021-41773", title="Apache path traversal", severity=Severity.critical,
+        cve=["CVE-2021-41773"], cvss=9.8, host="10.0.0.1", port=80, service="http",
+    ))
+    report.finalize()
+    mgr = OutputManager(tmp_path, "jinja_test")
+    content = mgr.write_html(report).read_text(encoding="utf-8")
+    assert "CVE-2021-41773" in content
+    assert "Apache path traversal" in content
+    assert "9.8" in content
+
+
+def test_write_findings_csv(tmp_path):
+    from recon.core.findings import Finding, Severity
+
+    report = ScanReport(target="10.0.0.1", scan_type="full")
+    report.add_finding(Finding(id="CVE-2021-41773", title="RCE", severity=Severity.critical,
+                               cve=["CVE-2021-41773"], cvss=9.8, port=80, service="http"))
+    path = OutputManager(tmp_path, "csv_test").write_findings_csv(report)
+    content = path.read_text(encoding="utf-8")
+    assert "id,title,severity" in content.splitlines()[0]
+    assert "CVE-2021-41773" in content

@@ -791,12 +791,15 @@ def print_findings_table(findings: list[dict[str, Any]], title: str = "Findings"
     for f in findings:
         sev   = str(f.get("severity", "info")).lower()
         style = sev_styles.get(sev, "white")
+        cve = f.get("cve")
+        cve_str = ", ".join(cve) if isinstance(cve, list) else str(cve or "")
+        port = f.get("port")
         table.add_row(
             Text(sev.upper(), style=style),
-            safe(f.get("cve", f.get("finding", "N/A"))),
+            safe(cve_str or f.get("id", f.get("finding", "N/A"))),
             safe(f.get("service", "")),
-            safe(str(f.get("port", ""))),
-            safe(f.get("description", "")),
+            safe("" if port is None else str(port)),
+            safe(f.get("title", f.get("description", ""))),
         )
 
     console.print(table)

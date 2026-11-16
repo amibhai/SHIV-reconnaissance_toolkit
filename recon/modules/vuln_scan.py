@@ -27,6 +27,7 @@ from typing import Any
 
 from recon.core.config import ReconConfig
 from recon.core.logger import get_logger, make_progress
+from recon.core.findings import Finding as _Finding, Severity, Confidence
 
 __all__ = ["VulnScanner", "Finding"]
 
@@ -66,29 +67,29 @@ def _load_databases() -> None:
         _DB_LOADED = True
 
 
-@dataclass
-class Finding:
-    """A single vulnerability or misconfiguration finding."""
-    severity: str          # critical, high, medium, low, info
-    finding: str           # CVE ID or short name
-    service: str
-    port: int
-    description: str
-    evidence: str = ""
-    remediation: str = ""
-    cvss_score: float = 0.0
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "severity": self.severity,
-            "cve": self.finding,
-            "service": self.service,
-            "port": self.port,
-            "description": self.description,
-            "evidence": self.evidence[:500] if self.evidence else "",
-            "remediation": self.remediation,
-            "cvss_score": self.cvss_score,
-        }
+def Finding(
+    severity: str,
+    finding: str,
+    service: str,
+    port: int,
+    description: str,
+    evidence: str = "",
+    remediation: str = "",
+    cvss_score: float = 0.0,
+) -> _Finding:
+    """Compatibility factory: build a canonical core Finding from the toolkit's
+    historical keyword shape, so the existing call sites stay unchanged while
+    findings are now a single validated schema (recon.core.findings.Finding)."""
+    return _Finding.from_legacy(
+        severity=severity,
+        finding=finding,
+        service=service,
+        port=port,
+        description=description,
+        evidence=evidence,
+        remediation=remediation,
+        cvss_score=cvss_score,
+    )
 
 
 def _cvss_to_severity(score: float) -> str:
@@ -129,10 +130,10 @@ class VulnScanner:
             "medium":   "[yellow]MEDIUM[/yellow]",
             "low":      "[green]LOW[/green]",
             "info":     "[cyan]INFO[/cyan]",
-        }.get(f.severity, f.severity.upper())
+        }.get(f.severity.value, f.severity.value.upper())
         _log.info(
-            "%s %s port=%d %s",
-            sev_style, f.finding, f.port, f.description[:80],
+            "%s %s port=%s %s",
+            sev_style, f.id, f.port, f.title[:80],
         )
 
     # ------------------------------------------------------------------ #

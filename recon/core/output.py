@@ -65,9 +65,12 @@ class ScanReport:
         with self._lock:
             self.hosts.append(host)
 
-    def add_finding(self, finding: dict[str, Any]) -> None:
+    def add_finding(self, finding: Any) -> None:
+        # Accept a canonical recon.core.findings.Finding or a plain dict and
+        # store the dict form, so producers can emit either.
+        record = finding.to_dict() if hasattr(finding, "to_dict") else finding
         with self._lock:
-            self.raw_findings.append(finding)
+            self.raw_findings.append(record)
 
     def add_dns(self, record: dict[str, Any]) -> None:
         with self._lock:
@@ -86,6 +89,17 @@ class ScanReport:
         return sum(
             1 for f in self.raw_findings if f.get("severity", "").lower() == "high"
         )
+
+    def severity_counts(self) -> dict[str, int]:
+        """Counts per severity (critical/high/medium/low/info), thread-safe."""
+        with self._lock:
+            findings = list(self.raw_findings)
+        counts = {s: 0 for s in ("critical", "high", "medium", "low", "info")}
+        for f in findings:
+            sev = str(f.get("severity", "")).lower()
+            if sev in counts:
+                counts[sev] += 1
+        return counts
 
     def to_dict(self) -> dict[str, Any]:
         # Snapshot shared state under the lock so a concurrent add_* (which also
@@ -119,6 +133,9 @@ class ScanReport:
                 "findings": len(findings),
                 "critical": _count("critical"),
                 "high": _count("high"),
+                "medium": _count("medium"),
+                "low": _count("low"),
+                "info": _count("info"),
             },
             "hosts": [
                 {
@@ -211,6 +228,22 @@ class OutputManager:
             writer.writerows(rows)
         return path
 
+    def write_findings_csv(self, report: ScanReport) -> Path:
+        """Write findings to CSV — the primary tabular export for triage/CI."""
+        path = self.output_dir / f"{self.base_name}_findings.csv"
+        fields = ["id", "title", "severity", "confidence", "cve", "cvss",
+                  "host", "port", "service", "remediation"]
+        findings = report.to_dict().get("findings", [])
+        with open(path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=fields, extrasaction="ignore")
+            writer.writeheader()
+            for finding in findings:
+                row = dict(finding)
+                if isinstance(row.get("cve"), list):
+                    row["cve"] = ";".join(row["cve"])
+                writer.writerow({k: row.get(k, "") for k in fields})
+        return path
+
     def write_html(self, report: ScanReport) -> Path:
         """
         Render an HTML report via Jinja2 template.
@@ -270,12 +303,15 @@ class OutputManager:
             lines.append("<th>Severity</th><th>CVE</th><th>Service</th><th>Port</th><th>Description</th></tr>")
             for f in data["findings"]:
                 sev = esc(str(f.get("severity", "info")).lower())
+                cve = f.get("cve")
+                cve_str = ", ".join(cve) if isinstance(cve, list) else str(cve or f.get("id", ""))
+                port = f.get("port")
                 lines.append(
                     f"<tr><td class='{sev}'>{sev.upper()}</td>"
-                    f"<td>{esc(str(f.get('cve', 'N/A')))}</td>"
+                    f"<td>{esc(cve_str or str(f.get('id', 'N/A')))}</td>"
                     f"<td>{esc(str(f.get('service', '')))}</td>"
-                    f"<td>{esc(str(f.get('port', '')))}</td>"
-                    f"<td>{esc(str(f.get('description', '')))}</td></tr>"
+                    f"<td>{esc('' if port is None else str(port))}</td>"
+                    f"<td>{esc(str(f.get('title', f.get('description', ''))))}</td></tr>"
                 )
             lines.append("</table>")
 

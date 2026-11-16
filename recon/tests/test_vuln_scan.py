@@ -59,8 +59,11 @@ def test_finding_to_dict():
     )
     d = f.to_dict()
     assert d["severity"] == "critical"
-    assert d["cve"] == "CVE-2021-44228"
+    assert d["cve"] == ["CVE-2021-44228"]
     assert d["port"] == 8080
+    assert d["id"] == "CVE-2021-44228"
+    assert d["title"] == "Log4Shell RCE"
+    assert d["cvss"] == 10.0
     assert len(d["evidence"]) <= 500
 
 
@@ -72,7 +75,7 @@ def test_cve_match_apache(scanner):
     _load_databases()
     banner = "Apache/2.4.49 (Unix)"
     findings = scanner.check_service_vulns(80, banner, "apache")
-    cve_ids = [f.finding for f in findings]
+    cve_ids = [f.id for f in findings]
     assert "CVE-2021-41773" in cve_ids
 
 
@@ -82,7 +85,7 @@ def test_cve_match_vsftpd(scanner):
     _load_databases()
     banner = "220 (vsFTPd 2.3.4)"
     findings = scanner.check_service_vulns(21, banner, "vsftpd")
-    cve_ids = [f.finding for f in findings]
+    cve_ids = [f.id for f in findings]
     assert "CVE-2011-2523" in cve_ids
 
 
@@ -92,7 +95,7 @@ def test_no_false_positive_new_apache(scanner):
     _load_databases()
     banner = "Apache/2.4.51 (Unix)"
     findings = scanner.check_service_vulns(80, banner, "apache")
-    cve_ids = [f.finding for f in findings]
+    cve_ids = [f.id for f in findings]
     assert "CVE-2021-41773" not in cve_ids
 
 
@@ -134,7 +137,7 @@ def test_unauthenticated_redis(scanner):
         f = scanner._check_unauthenticated_redis(6379)
     assert f is not None
     assert f.severity == "critical"
-    assert f.finding == "REDIS-NO-AUTH"
+    assert f.id == "REDIS-NO-AUTH"
 
 
 def test_authenticated_redis(scanner):
