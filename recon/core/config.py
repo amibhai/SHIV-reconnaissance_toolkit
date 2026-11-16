@@ -39,7 +39,13 @@ def _load_toml_file(path: Path) -> dict[str, Any]:
                     return tomli.load(f)
             except ImportError:
                 return {}
-    except Exception:
+    except Exception as exc:
+        import warnings
+        warnings.warn(
+            f"Ignoring malformed TOML config at {path}: {exc}",
+            RuntimeWarning,
+            stacklevel=2,
+        )
         return {}
 
 
@@ -193,6 +199,25 @@ class ReconConfig(BaseSettings):
     @classmethod
     def expand_output_dir(cls, v: Any) -> Path:
         return Path(v).expanduser().resolve()
+
+    @field_validator("report_formats")
+    @classmethod
+    def validate_report_formats(cls, v: list[str]) -> list[str]:
+        allowed = {"json", "csv", "html", "sarif", "ndjson"}
+        bad = [fmt for fmt in v if fmt not in allowed]
+        if bad:
+            raise ValueError(
+                f"unknown report_formats {bad}; allowed: {sorted(allowed)}"
+            )
+        return v
+
+    @field_validator("decoy_ips")
+    @classmethod
+    def validate_decoy_ips(cls, v: list[str]) -> list[str]:
+        import ipaddress
+        for ip in v:
+            ipaddress.ip_address(ip)  # raises ValueError on an invalid address
+        return v
 
     @model_validator(mode="after")
     def sync_evasion_flags(self) -> "ReconConfig":

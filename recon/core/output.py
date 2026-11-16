@@ -88,6 +88,23 @@ class ScanReport:
         )
 
     def to_dict(self) -> dict[str, Any]:
+        # Snapshot shared state under the lock so a concurrent add_* (which also
+        # takes the lock) cannot mutate a list mid-serialization — the previous
+        # version iterated the live lists lock-free and could raise
+        # "list changed size during iteration" during recon.py full.
+        with self._lock:
+            hosts = list(self.hosts)
+            dns_records = list(self.dns_records)
+            subdomains = list(self.subdomains)
+            wireless = list(self.wireless_networks)
+            findings = list(self.raw_findings)
+            pcap_files = list(self.pcap_files)
+            errors = list(self.errors)
+            metadata = dict(self.metadata)
+
+        def _count(sev: str) -> int:
+            return sum(1 for f in findings if str(f.get("severity", "")).lower() == sev)
+
         return {
             "target": self.target,
             "scan_type": self.scan_type,
@@ -96,12 +113,12 @@ class ScanReport:
             "duration_seconds": self.duration_seconds(),
             "operator": self.operator,
             "summary": {
-                "hosts_found": len(self.hosts),
-                "dns_records": len(self.dns_records),
-                "subdomains": len(self.subdomains),
-                "findings": len(self.raw_findings),
-                "critical": self.critical_count(),
-                "high": self.high_count(),
+                "hosts_found": len(hosts),
+                "dns_records": len(dns_records),
+                "subdomains": len(subdomains),
+                "findings": len(findings),
+                "critical": _count("critical"),
+                "high": _count("high"),
             },
             "hosts": [
                 {
@@ -116,15 +133,15 @@ class ScanReport:
                     "findings": h.findings,
                     "ttl": h.ttl,
                 }
-                for h in self.hosts
+                for h in hosts
             ],
-            "dns_records": self.dns_records,
-            "subdomains": self.subdomains,
-            "wireless_networks": self.wireless_networks,
-            "findings": self.raw_findings,
-            "pcap_files": [str(p) for p in self.pcap_files],
-            "errors": self.errors,
-            "metadata": self.metadata,
+            "dns_records": dns_records,
+            "subdomains": subdomains,
+            "wireless_networks": wireless,
+            "findings": findings,
+            "pcap_files": [str(p) for p in pcap_files],
+            "errors": errors,
+            "metadata": metadata,
         }
 
 

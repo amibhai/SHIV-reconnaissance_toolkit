@@ -38,6 +38,7 @@ from rich.text import Text
 from rich.theme import Theme
 
 __all__ = [
+    "safe",
     "get_logger",
     "console",
     "err_console",
@@ -730,6 +731,16 @@ def print_compact_header(target: str | None = None) -> None:
     console.print()
 
 
+def safe(value: Any) -> Text:
+    """Wrap untrusted text so Rich renders it literally (no markup injection).
+
+    Banners, service strings, hostnames and finding descriptions are
+    attacker/target-controlled and can contain '[' or '[/]' sequences that Rich
+    would otherwise interpret as markup (mis-rendering or raising).
+    """
+    return Text(str(value), end="")
+
+
 def print_findings_table(findings: list[dict[str, Any]], title: str = "Findings") -> None:
     """
     Render a Rich table of scan findings with severity coloring.
@@ -759,14 +770,14 @@ def print_findings_table(findings: list[dict[str, Any]], title: str = "Findings"
     }
 
     for f in findings:
-        sev   = f.get("severity", "info").lower()
+        sev   = str(f.get("severity", "info")).lower()
         style = sev_styles.get(sev, "white")
         table.add_row(
-            f"[{style}]{sev.upper()}[/{style}]",
-            f.get("cve", f.get("finding", "N/A")),
-            f.get("service", ""),
-            str(f.get("port", "")),
-            f.get("description", ""),
+            Text(sev.upper(), style=style),
+            safe(f.get("cve", f.get("finding", "N/A"))),
+            safe(f.get("service", "")),
+            safe(str(f.get("port", ""))),
+            safe(f.get("description", "")),
         )
 
     console.print(table)

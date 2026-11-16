@@ -28,7 +28,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 # -- Bootstrap logging before any module import ------------------------------
-from recon.core.logger import configure_logging, console, get_logger, print_banner
+from recon.core.logger import configure_logging, console, get_logger, print_banner, safe
 from recon.core.config import ReconConfig
 from recon.core.output import OutputManager, ScanReport
 from recon.core.privilege import PrivilegeChecker
@@ -172,7 +172,7 @@ def discover(
     table.add_column("Open Ports")
     for h in hosts:
         table.add_row(
-            h.ip, h.hostname, h.mac, h.vendor, h.ttl_os_hint,
+            h.ip, safe(h.hostname), h.mac, safe(h.vendor), safe(h.ttl_os_hint),
             ",".join(h.methods),
             ",".join(str(p) for p in h.open_ports[:6]),
         )
@@ -265,9 +265,9 @@ def portscan(
             str(r.port),
             r.protocol,
             f"[{state_style}]{r.state}[/{state_style}]",
-            r.service,
-            r.version,
-            r.banner[:60] if r.banner else "",
+            safe(r.service),
+            safe(r.version),
+            safe(r.banner[:60] if r.banner else ""),
         )
     console.print(table)
 
