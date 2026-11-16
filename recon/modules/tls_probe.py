@@ -407,30 +407,19 @@ class TLSProbe:
 
     # ── JA3S fingerprint ──────────────────────────────────────────────────────
 
-    def compute_ja3s(self, sock: ssl.SSLSocket) -> str:
-        """
-        Compute a JA3S-style fingerprint from the negotiated connection.
+    def compute_ja3s(self, sock=None) -> str:
+        """Compute a real, spec-correct JA3S from the server's ServerHello.
 
-        JA3S = MD5(TLSVersion,CipherSuite,Extensions)
-        We use what's available from Python ssl: negotiated version + cipher.
+        JA3S = MD5("SSLVersion,Cipher,Extensions"). Python's ssl module does not
+        expose the ServerHello cipher number or extension list, so this uses a
+        dedicated raw ClientHello/ServerHello exchange (recon.core.tlshello).
+        The old implementation hashed Python's per-process-random hash() and so
+        changed on every run; this is deterministic. Returns "" on any failure.
         """
-        try:
-            proto = sock.version() or ""
-            cipher_info = sock.cipher()
-            cipher_name = cipher_info[0] if cipher_info else ""
-            # Map version string to hex
-            ver_map = {
-                "TLSv1": "769", "TLSv1.1": "770",
-                "TLSv1.2": "771", "TLSv1.3": "772",
-                "SSLv3": "768",
-            }
-            ver_int = ver_map.get(proto, "0")
-            # Map cipher name to IANA numeric (simplified lookup)
-            cipher_int = str(abs(hash(cipher_name)) % 65535)
-            raw = f"{ver_int},{cipher_int},"
-            return hashlib.md5(raw.encode()).hexdigest()
-        except Exception:
-            return ""
+        from recon.core.tlshello import server_fingerprint
+
+        fp = server_fingerprint(self.target, self.port, self.config.timeout)
+        return fp.get("ja3s", "") if fp else ""
 
     # ── HSTS check ────────────────────────────────────────────────────────────
 
