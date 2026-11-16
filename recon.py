@@ -454,6 +454,10 @@ def full(
     verbose:    int   = typer.Option(1,    "-v", count=True),
     pcap:       bool  = typer.Option(False, "--pcap"),
     open_report:bool  = typer.Option(True,  "--open/--no-open", help="Open HTML report in browser"),
+    report_formats: str = typer.Option(
+        "json,html,sarif,ndjson", "--report-formats",
+        help="Comma-separated output formats: json,html,csv,sarif,ndjson",
+    ),
 ) -> None:
     """
     [bold cyan]Full pipeline[/bold cyan]: discover -> OS fingerprint -> port scan -> vuln scan -> HTML report.
@@ -560,8 +564,12 @@ def full(
     base_name = f"full_{target.replace('/', '_')}_{ts}"
     output_mgr = OutputManager(cfg.output_dir, base_name)
 
-    json_path = output_mgr.write_json(report)
-    html_path = output_mgr.write_html(report)
+    fmts = [x.strip() for x in report_formats.split(",") if x.strip()]
+    if "json" not in fmts:
+        fmts.insert(0, "json")  # always keep the canonical JSON artifact
+    outputs = output_mgr.write_all(report, fmts)
+    json_path = outputs.get("json")
+    html_path = outputs.get("html")
 
     # Summary panel
     console.print(Panel(
@@ -571,13 +579,12 @@ def full(
         f"[bold]Critical:[/bold] [red]{report.critical_count()}[/red]  "
         f"[bold]High:[/bold] [orange1]{report.high_count()}[/orange1]\n"
         f"[bold]Duration:[/bold] {report.duration_seconds():.1f}s\n\n"
-        f"[bold]JSON:[/bold] {json_path}\n"
-        f"[bold]HTML:[/bold] {html_path}",
+        + "".join(f"[bold]{fmt.upper()}:[/bold] {path}\n" for fmt, path in outputs.items()),
         title="[bold green]Scan Complete[/bold green]",
         border_style="green",
     ))
 
-    if open_report and html_path.exists():
+    if open_report and html_path is not None and html_path.exists():
         webbrowser.open(f"file://{html_path.resolve()}")
 
 

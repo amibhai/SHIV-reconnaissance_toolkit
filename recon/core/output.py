@@ -10,11 +10,15 @@ from __future__ import annotations
 import csv
 import html
 import json
+import os
+import tempfile
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from recon.__version__ import __version__
 
 __all__ = ["ScanReport", "OutputManager"]
 
@@ -190,9 +194,7 @@ class OutputManager:
             Path to the written file.
         """
         path = self._path("json")
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(report.to_dict(), f, indent=2, default=str)
-        return path
+        return self._atomic_write_text(path, json.dumps(report.to_dict(), indent=2, default=str))
 
     def write_csv(self, report: ScanReport) -> Path:
         """
@@ -272,10 +274,7 @@ class OutputManager:
             report=report.to_dict(),
             generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
         )
-        path = self._path("html")
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(rendered)
-        return path
+        return self._atomic_write_text(self._path("html"), rendered)
 
     def _write_html_fallback(self, report: ScanReport) -> Path:
         """Minimal HTML fallback when Jinja2 or template is unavailable."""
@@ -316,9 +315,114 @@ class OutputManager:
             lines.append("</table>")
 
         lines.append("</body></html>")
-        with open(path, "w", encoding="utf-8") as f:
-            f.write("\n".join(lines))
+        return self._atomic_write_text(path, "\n".join(lines))
+
+    def _atomic_write_text(self, path: Path, text: str) -> Path:
+        """Write text atomically: a temp file in the same dir + os.replace, so a
+        crash mid-write never leaves a half-written/corrupt artifact."""
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(dir=str(self.output_dir), prefix=".tmp_", suffix=path.suffix)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8", newline="") as f:
+                f.write(text)
+            os.replace(tmp, path)
+        except BaseException:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
         return path
+
+    def write_ndjson(self, report: ScanReport) -> Path:
+        """Newline-delimited JSON: one self-contained record per line for SIEM /
+        log ingestion (a run header, then one line per finding and per host)."""
+        data = report.to_dict()
+        run_id = f"{data.get('scan_type', 'scan')}-{self.base_name}"
+        records: list[dict[str, Any]] = [{
+            "type": "run", "run_id": run_id, "target": data.get("target"),
+            "scan_type": data.get("scan_type"), "started": data.get("start_time"),
+            "version": __version__, "summary": data.get("summary"),
+        }]
+        for finding in data.get("findings", []):
+            rec = {"type": "finding", "run_id": run_id, "target": data.get("target")}
+            rec.update(finding)
+            records.append(rec)
+        for host in data.get("hosts", []):
+            rec = {"type": "host", "run_id": run_id, "target": data.get("target")}
+            rec.update(host)
+            records.append(rec)
+        body = "\n".join(json.dumps(r, default=str) for r in records) + "\n"
+        return self._atomic_write_text(self._path("ndjson"), body)
+
+    def write_sarif(self, report: ScanReport) -> Path:
+        """SARIF 2.1.0 — ingestible by GitHub code scanning and DefectDojo."""
+        data = report.to_dict()
+        target = data.get("target", "")
+        level_map = {"critical": "error", "high": "error", "medium": "warning",
+                     "low": "note", "info": "note"}
+        rules: dict[str, dict] = {}
+        results: list[dict] = []
+        for f in data.get("findings", []):
+            cves = f.get("cve") or []
+            rid = f.get("id") or (cves[0] if cves else "finding")
+            if rid not in rules:
+                rule = {"id": rid, "name": rid,
+                        "shortDescription": {"text": f.get("title") or rid}}
+                if cves:
+                    rule["helpUri"] = f"https://nvd.nist.gov/vuln/detail/{cves[0]}"
+                if f.get("remediation"):
+                    rule["help"] = {"text": f["remediation"]}
+                rules[rid] = rule
+            host = f.get("host") or target
+            port = f.get("port")
+            svc = f.get("service", "")
+            loc_name = f"{host}:{port}/{svc}" if port is not None else str(host)
+            uri = f"tcp://{host}:{port}" if port is not None else f"//{host}"
+            results.append({
+                "ruleId": rid,
+                "level": level_map.get(str(f.get("severity", "info")).lower(), "note"),
+                "message": {"text": f.get("title") or rid},
+                "locations": [{
+                    "logicalLocations": [{"name": loc_name, "kind": "resource"}],
+                    "physicalLocation": {"artifactLocation": {"uri": uri}},
+                }],
+                "properties": {k: f.get(k) for k in ("cvss", "confidence", "severity", "service")
+                               if f.get(k) is not None},
+            })
+        sarif = {
+            "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+            "version": "2.1.0",
+            "runs": [{
+                "tool": {"driver": {
+                    "name": "recon-toolkit",
+                    "informationUri": "https://github.com/amibhai/SHIV-reconnaissance_toolkit",
+                    "version": __version__,
+                    "rules": list(rules.values()),
+                }},
+                "results": results,
+                "properties": {"target": target, "scan_type": data.get("scan_type")},
+            }],
+        }
+        return self._atomic_write_text(self._path("sarif"), json.dumps(sarif, indent=2, default=str))
+
+    def write_all(self, report: ScanReport, formats: list[str] | None = None) -> dict[str, Path]:
+        """Write every requested format; returns {format: path}. Unknown formats
+        are ignored (ReconConfig validates the allowed set upstream)."""
+        fmts = formats if formats is not None else ["json", "html"]
+        dispatch = {
+            "json": self.write_json,
+            "html": self.write_html,
+            "csv": self.write_csv,
+            "sarif": self.write_sarif,
+            "ndjson": self.write_ndjson,
+        }
+        out: dict[str, Path] = {}
+        for fmt in fmts:
+            fn = dispatch.get(fmt)
+            if fn is not None:
+                out[fmt] = fn(report)
+        return out
 
     def add_pcap(self, report: ScanReport, pcap_path: Path) -> None:
         """
