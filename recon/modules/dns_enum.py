@@ -283,7 +283,7 @@ class DNSEnumerator:
     def _load_wordlist(self) -> list[str]:
         path = self._wordlist_path
         if path is None:
-            path = Path(__file__).parent.parent / "data" / "wordlists" / "subdomains_top5000.txt"
+            path = Path(__file__).parent.parent / "data" / "wordlists" / "subdomains_common.txt"
         if path.exists():
             words = [l.strip() for l in path.read_text(encoding="utf-8").splitlines() if l.strip()]
             _log.debug("Loaded wordlist: %d entries from %s", len(words), path)

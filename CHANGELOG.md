@@ -4,6 +4,46 @@ All notable changes to the Recon Toolkit are documented here.
 
 ---
 
+## [2.2.0] — 2026-11-16 — Foundation Phase
+
+A correctness, cross-platform, and architecture overhaul: everything the README
+advertises now actually runs, and both front-ends share one engine.
+
+### Fixed (silent failures)
+- **Service detection** was fully dead — service_probes.json was invalid JSON
+  (raw hex-byte escapes) and the loader silently returned []. Rebuilt in a
+  bytes-safe schema (probe + probe_encoding text|base64); all 34 probes now
+  load, send, and match. New recon/core/probes.py loader raises on a bad DB.
+- **Windows scanning**: the privilege checker equated Administrator with raw
+  sockets, so SYN scans ran with no Npcap and silently returned nothing. Now
+  Npcap is detected and raw scans degrade to connect; _sys_ping uses correct
+  per-OS flags; MAC-vendor lookup ships an OUI database.
+- **Port lists**: top1000 scanned 437 ports and top10000 scanned 1..10000.
+  Replaced with a real frequency-ordered nmap_top_ports.txt (10k ports).
+- **CLI** no longer blocks on the banner's ENTER prompt; output is UTF-8 safe
+  even when piped on Windows. Two uncompilable CVE regexes repaired.
+
+### Added
+- Validated structured Finding schema (recon/core/findings.py): severity +
+  confidence enums, CVE/CVSS, used across report/HTML/CSV.
+- Machine-readable output: **SARIF 2.1.0** and **NDJSON** writers; all writes are
+  atomic. --report-formats on `recon full`.
+- Scanner **registry** + **engine** (recon/core/registry.py, recon/engine.py) so
+  both front-ends enumerate and run the same capabilities; the previously
+  unreachable advanced modules (async/HTTP/TLS/SMB/SNMP) are now CLI subcommands
+  and `recon list` shows every capability with privilege gating.
+- Test + CI baseline: data-integrity gate, Finding/SARIF/NDJSON, privilege and
+  Windows-fallback tests; GitHub Actions on Windows + Linux. ~112 tests.
+
+### Changed
+- The interactive menu is now a thin front-end over the shared engine (it writes
+  JSON/HTML/SARIF/NDJSON reports); the legacy tools/* + utils/* trees and the
+  duplicate menu were removed. Single version source of truth in
+  recon/__version__.py. subdomains_top5000.txt renamed to the honest
+  subdomains_common.txt.
+
+---
+
 ## [2.1.0] — 2026-06-12
 
 ### Added

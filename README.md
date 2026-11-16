@@ -1,7 +1,7 @@
 # SHIV — recon-toolkit v2.0
 
 **Production-Grade Network Reconnaissance Suite**  
-**62/62 Tests Passing · 8 CLI Subcommands · Interactive Menu · wifi_down-Style Launch**
+**112 Tests Passing · 13 CLI Subcommands · Unified Engine · SARIF/NDJSON Output · Windows-Ready**
 
 ---
 
@@ -64,7 +64,26 @@ python recon.py --help
 ```
 
 > [!TIP]
-> Run `pytest` after installation to verify all 62 unit tests pass on your environment.
+> Run `pytest` after installation to verify the unit suite passes on your environment.
+
+---
+
+## Platform Support
+
+The toolkit is cross-platform. Unprivileged scans run everywhere; raw-packet
+features need a backend (root/CAP_NET_RAW on Linux, Npcap on Windows) and
+otherwise **degrade gracefully to connect-based scanning** instead of failing.
+
+| Capability | Linux (root) | Linux (user) | Windows + Npcap | Windows (no Npcap) | macOS |
+|---|:--:|:--:|:--:|:--:|:--:|
+| Connect / async scan, service detection | ✅ | ✅ | ✅ | ✅ | ✅ |
+| DNS / HTTP / TLS / SMB / SNMP, vuln scan | ✅ | ✅ | ✅ | ✅ | ✅ |
+| SYN / FIN / XMAS / ACK / raw-UDP scan | ✅ | ⚠ falls back | ✅ | ⚠ falls back | ✅ (root) |
+| ARP sweep, raw ICMP, PCAP | ✅ | ⚠ falls back | ✅ | ⚠ falls back | ✅ (root) |
+| Wireless monitor mode | ✅ | ❌ | ❌ | ❌ | ❌ |
+
+Run `python recon.py privcheck` to see exactly what is available on your host,
+and `python recon.py list` to see every capability with its privilege gating.
 
 ---
 
@@ -414,10 +433,8 @@ recon-toolkit/
 │
 ├── menu.py                     # Interactive menu (wifi_down-style SHIV launch)
 │
-├── tools/
-│   └── recon_menu.py           # Legacy entry point (kept for compatibility)
-│
 ├── recon/
+│   ├── engine.py              # unified run_* adapters -> ScanReport
 │   ├── core/
 │   │   ├── logger.py           # SHIV banner system + Rich logger + JSON Lines
 │   │   ├── config.py           # Pydantic v2 settings
@@ -444,7 +461,7 @@ recon-toolkit/
 │   │   ├── default_creds.json      # 13 credential sets
 │   │   └── wordlists/
 │   │       ├── dns_resolvers.txt
-│   │       └── subdomains_top5000.txt
+│   │       └── subdomains_common.txt
 │   │
 │   ├── reports/
 │   │   └── template.html           # Jinja2 dark-theme report template
@@ -456,9 +473,7 @@ recon-toolkit/
 │       ├── test_port_scan.py
 │       └── test_vuln_scan.py
 │
-└── utils/                          # Standalone utility scripts
-    ├── recon_utils.py
-    └── wireless.py
+    └── tui.py                   # interactive menu (thin engine front-end)
 ```
 
 ---

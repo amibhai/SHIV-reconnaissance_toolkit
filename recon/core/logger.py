@@ -37,6 +37,8 @@ from rich.table import Table
 from rich.text import Text
 from rich.theme import Theme
 
+from recon.__version__ import __version__
+
 __all__ = [
     "safe",
     "get_logger",
@@ -553,7 +555,7 @@ def _print_status(bc: Console) -> None:
     segments = [
         ("  ◈ ",        "color(51)"),
         ("toolkit: ",     "color(240) dim"),
-        ("SHIV v3.0",     "color(87) bold"),
+        (f"SHIV v{__version__}",     "color(87) bold"),
         ("   ◈ ",       "color(51)"),
         ("status: ",      "color(240) dim"),
         ("ready",         "color(87) bold"),
@@ -671,7 +673,7 @@ def _build_right_column(author: str, quote: str) -> list[str]:
     L.append("")
     L.append(
         _ansi_str("  ◈ ", "color(51)")
-        + _ansi_str("toolkit: ",  "color(240) dim") + _ansi_str("SHIV v3.0", "color(87) bold")
+        + _ansi_str("toolkit: ",  "color(240) dim") + _ansi_str(f"SHIV v{__version__}", "color(87) bold")
         + _ansi_str("   ◈ ",      "color(51)")
         + _ansi_str("status: ",   "color(240) dim") + _ansi_str("ready",     "color(87) bold")
         + _ansi_str("   ◈ ",      "color(51)")

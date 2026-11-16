@@ -273,6 +273,7 @@ class OutputManager:
         rendered = tmpl.render(
             report=report.to_dict(),
             generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
+            version=__version__,
         )
         return self._atomic_write_text(self._path("html"), rendered)
 

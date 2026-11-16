@@ -1,5 +1,5 @@
 """
-recon.py -- Main CLI entrypoint for the Recon Toolkit v2.0.
+recon.py -- Main CLI entrypoint for the recon toolkit.
 
 LEGAL NOTICE: This tool is for authorized security testing and educational
 purposes only. Using it against systems without explicit written permission
