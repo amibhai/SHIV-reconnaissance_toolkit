@@ -35,6 +35,22 @@ __all__ = ["PortScanner", "PortResult", "NMAP_TOP_1000"]
 
 _log = get_logger("port_scan")
 
+# Ports that speak TLS immediately (implicit TLS). Service detection wraps the
+# socket in a handshake for these instead of sending a cleartext probe that a
+# TLS listener never answers (the old behaviour: HTTPS/etc. always timed out).
+_TLS_PORTS = {443, 465, 563, 636, 853, 990, 992, 993, 995, 2376, 4443, 5986,
+              6443, 8443, 8834, 9443, 9100}
+
+
+def _wrap_tls(sock, host: str):
+    """Wrap a connected socket in TLS (no cert validation — we are scanning)."""
+    import ssl
+
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    return ctx.wrap_socket(sock, server_hostname=host)
+
 # Nmap top-1000 TCP ports — ordered by frequency in nmap-services.
 # dict.fromkeys() dedups while preserving that frequency order; a plain
 # sorted(set(...)) would instead reorder everything by ascending port
@@ -610,28 +626,37 @@ class PortScanner:
                 continue
             if port not in probe.get("ports", []):
                 continue
+            sock = None
             try:
-                with socket.create_connection(
+                sock = socket.create_connection(
                     (self.target_ip, port), timeout=self.config.connect_timeout
-                ) as s:
-                    s.settimeout(self.config.connect_timeout)
-                    payload = probe_payload(probe, self.target_ip)
-                    if payload:
-                        s.sendall(payload)
-                    data = s.recv(2048)
-                    # Match on a byte-faithful latin-1 view (1:1 codepoints) so
-                    # binary / NUL-byte probe patterns work; UTF-8 only for display.
-                    match_text = data.decode("latin-1", errors="replace")
-                    banner = data.decode("utf-8", errors="replace").strip()
-                    match_regex = probe.get("match_regex")
-                    if match_regex:
-                        m = re.search(match_regex, match_text)
-                        if m:
-                            version = m.group("version") if "version" in m.groupdict() else ""
-                            return probe.get("service_name", ""), version, banner[:300]
-                    return probe.get("service_name", ""), "", banner[:300]
+                )
+                sock.settimeout(self.config.connect_timeout)
+                if port in _TLS_PORTS:
+                    sock = _wrap_tls(sock, self.target_ip)  # raises if not really TLS
+                payload = probe_payload(probe, self.target_ip)
+                if payload:
+                    sock.sendall(payload)
+                data = sock.recv(2048)
+                # Match on a byte-faithful latin-1 view (1:1 codepoints) so
+                # binary / NUL-byte probe patterns work; UTF-8 only for display.
+                match_text = data.decode("latin-1", errors="replace")
+                banner = data.decode("utf-8", errors="replace").strip()
+                match_regex = probe.get("match_regex")
+                if match_regex:
+                    m = re.search(match_regex, match_text)
+                    if m:
+                        version = m.group("version") if "version" in m.groupdict() else ""
+                        return probe.get("service_name", ""), version, banner[:300]
+                return probe.get("service_name", ""), "", banner[:300]
             except Exception:
                 continue
+            finally:
+                if sock is not None:
+                    try:
+                        sock.close()
+                    except Exception:
+                        pass
 
         # Fallback: raw banner grab
         service_name = _well_known_service(port)
