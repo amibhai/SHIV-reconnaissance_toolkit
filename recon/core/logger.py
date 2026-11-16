@@ -66,6 +66,17 @@ _RECON_THEME = Theme(
     }
 )
 
+# Ensure UTF-8 output everywhere. On Windows a redirected/piped stdout defaults
+# to cp1252, which cannot encode the box-drawing and status glyphs the UI uses
+# (previously only print_banner() reconfigured this, so piped CLI output crashed
+# with UnicodeEncodeError). errors="replace" keeps output flowing regardless.
+for _stream_name in ("stdout", "stderr"):
+    _stream = getattr(sys, _stream_name, None)
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
+    except Exception:
+        pass
+
 console = Console(theme=_RECON_THEME, stderr=False, emoji=True, highlight=False)
 err_console = Console(theme=_RECON_THEME, stderr=True)
 
@@ -672,9 +683,16 @@ def _build_right_column(author: str, quote: str) -> list[str]:
 _IMG_COLS = 54   # visual columns the image occupies
 
 
-def print_banner() -> None:
-    """Full launch banner — SHIV edition, called once at startup."""
-    os.system("cls" if os.name == "nt" else "clear")
+def print_banner(interactive: bool = True) -> None:
+    """Launch banner — SHIV edition.
+
+    interactive=True (the menu): clears the screen and ends on a blocking
+    "press ENTER" prompt. interactive=False (the CLI): renders the art only —
+    never clears the screen and never blocks on input — so commands stay
+    scriptable. In a non-TTY/CI run the caller simply skips it.
+    """
+    if interactive:
+        os.system("cls" if os.name == "nt" else "clear")
     bc = _make_banner_console()
 
     _data = Path(__file__).parent.parent / "data" / "mahadev.png"
@@ -713,7 +731,8 @@ def print_banner() -> None:
     _print_quote(bc, author, quote)
     _print_disclaimer(bc)
     _print_status(bc)
-    _print_enter_prompt(bc)
+    if interactive:
+        _print_enter_prompt(bc)
 
 
 def print_compact_header(target: str | None = None) -> None:

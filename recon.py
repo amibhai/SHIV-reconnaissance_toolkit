@@ -18,6 +18,8 @@ Usage:
 from __future__ import annotations
 
 import json
+import os
+import sys
 import webbrowser
 from datetime import datetime, timezone
 from pathlib import Path
@@ -42,6 +44,22 @@ app = typer.Typer(
     no_args_is_help=True,
     rich_markup_mode="rich",
 )
+
+
+@app.callback()
+def _app_main(
+    no_banner: bool = typer.Option(
+        False, "--no-banner", help="Suppress the startup banner (also: RECON_NO_BANNER=1)."
+    ),
+) -> None:
+    """Production-grade network reconnaissance suite. AUTHORIZED USE ONLY.
+
+    The banner is shown once here only on an interactive TTY; it never blocks on
+    input and is omitted in pipes/CI so every subcommand stays scriptable.
+    """
+    suppressed = no_banner or os.environ.get("RECON_NO_BANNER") == "1"
+    if not suppressed and sys.stdin.isatty() and sys.stdout.isatty():
+        print_banner(interactive=False)
 
 # -- Shared CLI options ------------------------------------------------------
 
@@ -85,7 +103,6 @@ def dns(
     pcap:         bool          = typer.Option(False, "--pcap"),
 ) -> None:
     """[cyan]DNS enumeration[/cyan]: zone transfer, brute-force, record types, DNSSEC."""
-    print_banner()
     cfg = _common_config(threads, timeout, output_dir, evasion, pcap, verbose)
 
     from recon.modules.dns_enum import DNSEnumerator
@@ -148,7 +165,6 @@ def discover(
     pcap:       bool  = typer.Option(False, "--pcap"),
 ) -> None:
     """[cyan]Host discovery[/cyan]: ARP / ICMP / TCP / UDP multi-method sweep."""
-    print_banner()
     cfg = _common_config(threads, timeout, output_dir, evasion, pcap, verbose)
 
     from recon.modules.host_discovery import HostDiscovery
@@ -200,7 +216,6 @@ def os_scan(
     verbose:    int   = typer.Option(1,     "-v", count=True),
 ) -> None:
     """[cyan]OS fingerprinting[/cyan]: TTL, TCP stack, banner, ICMP quirks."""
-    print_banner()
     cfg = _common_config(timeout=timeout, output_dir=output_dir, verbose=verbose)
 
     from recon.modules.os_fingerprint import OSFingerprinter
@@ -236,7 +251,6 @@ def portscan(
     pcap:       bool  = typer.Option(False, "--pcap"),
 ) -> None:
     """[cyan]Port scanner[/cyan]: SYN / Connect / FIN / XMAS / NULL / ACK / UDP."""
-    print_banner()
     cfg = _common_config(threads, timeout, output_dir, evasion, pcap, verbose)
 
     from recon.modules.port_scan import PortScanner
@@ -298,7 +312,6 @@ def vulnscan(
     pcap:       bool       = typer.Option(False, "--pcap"),
 ) -> None:
     """[cyan]Vulnerability scanner[/cyan]: CVE matching, SSL audit, default creds, misconfigs."""
-    print_banner()
     cfg = _common_config(threads, timeout, output_dir, verbose=verbose, pcap=pcap)
 
     from recon.modules.port_scan import PortScanner
@@ -361,7 +374,6 @@ def wireless(
     verbose:     int          = typer.Option(1,     "-v", count=True),
 ) -> None:
     """[cyan]Wireless reconnaissance[/cyan]: monitor mode, channel hopping, network discovery."""
-    print_banner()
     cfg = _common_config(output_dir=output_dir, verbose=verbose)
 
     from recon.modules.wireless import WirelessManager
@@ -448,7 +460,6 @@ def full(
 
     Feeds results from each stage into the next for maximum accuracy.
     """
-    print_banner()
 
     # Privilege check
     priv = PrivilegeChecker()
@@ -575,7 +586,6 @@ def full(
 @app.command()
 def privcheck() -> None:
     """Show current privilege status and available features."""
-    print_banner()
     priv = PrivilegeChecker()
     priv.check()
     priv.print_status()
