@@ -201,3 +201,32 @@ def test_findings_sorted(scanner):
     assert sevs.index("critical") < sevs.index("high")
     assert sevs.index("high") < sevs.index("medium")
     assert sevs.index("medium") < sevs.index("low")
+
+
+def test_version_gating_precision(scanner):
+    from recon.modules.vuln_scan import _load_databases
+    _load_databases()
+
+    def run(port, banner, svc):
+        scanner._findings.clear()
+        return {f.to_dict()["id"]: f.to_dict()["confidence"]
+                for f in scanner.check_service_vulns(port, banner, svc)}
+
+    a = run(80, "Server: Apache/2.4.49 (Unix)", "apache")
+    assert a.get("CVE-2021-41773") == "confirmed"
+    b = run(80, "Server: Apache/2.4.51 (Unix)", "apache")
+    assert "CVE-2021-41773" not in b          # fixed version not flagged
+
+    c = run(22, "SSH-2.0-OpenSSH_7.4", "openssh")
+    assert c.get("CVE-2018-15473") == "confirmed"
+    d = run(22, "SSH-2.0-OpenSSH_8.0", "openssh")
+    assert "CVE-2018-15473" not in d
+
+
+def test_product_presence_is_tentative(scanner):
+    from recon.modules.vuln_scan import _load_databases
+    _load_databases()
+    scanner._findings.clear()
+    out = {f.to_dict()["id"]: f.to_dict()["confidence"]
+           for f in scanner.check_service_vulns(445, "Windows Server 2008 SMB", "smb")}
+    assert out.get("CVE-2017-0144") == "tentative"

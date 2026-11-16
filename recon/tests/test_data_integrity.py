@@ -143,3 +143,22 @@ def test_kev_file_parses_and_ids_well_formed():
     assert all(_re.fullmatch(r"CVE-\d{4}-\d{3,7}", c) for c in kev)
     # sanity: famous exploited CVEs are present
     assert {"CVE-2021-44228", "CVE-2019-0708", "CVE-2020-1472"} <= kev
+
+
+def test_cve_version_gating_fields_are_valid():
+    """Any version_capture must compile; any version_range must be evaluable."""
+    from recon.core import versioning as V
+
+    db = _load_json("cve_db.json")
+    for e in db:
+        cap = e.get("version_capture")
+        if cap:
+            re.compile(cap)  # raises -> fail
+        vr = e.get("version_range")
+        if vr:
+            # must be well-formed (evaluating a sample returns a bool, no raise)
+            assert isinstance(V.satisfies("1.0.0", vr), bool)
+            assert any(op in vr for op in ("<", ">", "=", "!"))
+        conf = e.get("confidence")
+        if conf:
+            assert conf in ("confirmed", "firm", "tentative")

@@ -76,6 +76,7 @@ def Finding(
     evidence: str = "",
     remediation: str = "",
     cvss_score: float = 0.0,
+    confidence: str = "firm",
 ) -> _Finding:
     """Compatibility factory: build a canonical core Finding from the toolkit's
     historical keyword shape, so the existing call sites stay unchanged while
@@ -89,6 +90,7 @@ def Finding(
         evidence=evidence,
         remediation=remediation,
         cvss_score=cvss_score,
+        confidence=confidence,
     )
 
 
@@ -160,6 +162,7 @@ class VulnScanner:
         found: list[Finding] = []
         if not banner and not service:
             return found
+        from recon.core.versioning import extract as _vextract, satisfies as _vsat
 
         for entry in _CVE_DB:
             svc_match = entry.get("service", "").lower()
@@ -175,6 +178,26 @@ class VulnScanner:
                 except re.error:
                     continue
 
+            # Optional version-range gating: only fire if a version extracted
+            # from the banner falls in the affected range. This kills false
+            # positives from rules that would otherwise match a product name.
+            confidence = entry.get("confidence", "firm")
+            vrange = entry.get("version_range")
+            if vrange:
+                cap = entry.get("version_capture")
+                src_text = banner
+                if cap:
+                    try:
+                        cm = re.search(cap, banner, re.IGNORECASE)
+                        if cm:
+                            src_text = cm.group(1) if cm.groups() else cm.group(0)
+                    except re.error:
+                        pass
+                ver = _vextract(src_text)
+                if not ver or not _vsat(ver, vrange):
+                    continue
+                confidence = entry.get("confidence", "confirmed")
+
             score = entry.get("cvss_score", 0.0)
             f = Finding(
                 severity=_cvss_to_severity(score),
@@ -185,6 +208,7 @@ class VulnScanner:
                 evidence=f"Banner: {banner[:200]}",
                 remediation=entry.get("remediation", ""),
                 cvss_score=score,
+                confidence=confidence,
             )
             found.append(f)
             self._add_finding(f)
