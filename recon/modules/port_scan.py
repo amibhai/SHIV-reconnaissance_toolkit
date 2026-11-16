@@ -209,10 +209,8 @@ class PortScanner:
 
     def __init__(self, target: str, config: ReconConfig | None = None) -> None:
         self.target = target
-        try:
-            self.target_ip = socket.gethostbyname(target)
-        except socket.gaierror:
-            self.target_ip = target
+        from recon.core.netutil import resolve_target
+        self.target_ip, self._is_ipv6 = resolve_target(target)
         self.config = config or ReconConfig()
         self._results: dict[int, PortResult] = {}
         self._lock = threading.Lock()
@@ -256,6 +254,9 @@ class PortScanner:
         Returns:
             List of PortResult entries for open/closed/filtered ports.
         """
+        if self._is_ipv6:
+            _log.info("IPv6 target: using connect scan (raw IPv6 not supported)")
+            return self.connect_scan(ports)
         if not self._priv.can("syn_scan"):
             _log.warning("SYN scan requires root; falling back to connect scan")
             return self.connect_scan(ports)
@@ -391,6 +392,9 @@ class PortScanner:
         Returns:
             List of PortResult entries.
         """
+        if self._is_ipv6:
+            _log.warning("%s scan not supported over IPv6; skipping", scan_type)
+            return []
         if not self._priv.can("fin_scan"):
             _log.warning("%s scan requires root; skipping", scan_type)
             return []
@@ -469,6 +473,9 @@ class PortScanner:
         Returns:
             PortResult with state 'unfiltered' or 'filtered'.
         """
+        if self._is_ipv6:
+            _log.warning("ACK scan not supported over IPv6; skipping")
+            return []
         if not self._priv.can("syn_scan"):
             _log.warning("ACK scan requires root; skipping")
             return []
@@ -524,8 +531,11 @@ class PortScanner:
         Returns:
             List of PortResult entries.
         """
-        if not self._priv.can("udp_raw"):
-            _log.warning("Raw UDP scan requires root; using connect fallback")
+        if self._is_ipv6 or not self._priv.can("udp_raw"):
+            if self._is_ipv6:
+                _log.info("IPv6 target: using UDP connect fallback")
+            else:
+                _log.warning("Raw UDP scan requires root; using connect fallback")
             return self._udp_connect_scan(ports)
 
         try:
@@ -582,8 +592,9 @@ class PortScanner:
         results: list[PortResult] = []
         for port in ports:
             payload = _UDP_PAYLOADS.get(port, b"\x00" * 4)
+            fam = socket.AF_INET6 if self._is_ipv6 else socket.AF_INET
             try:
-                with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+                with socket.socket(fam, socket.SOCK_DGRAM) as s:
                     s.settimeout(self.config.timeout)
                     s.sendto(payload, (self.target_ip, port))
                     s.recvfrom(1024)
