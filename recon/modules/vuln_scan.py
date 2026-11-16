@@ -77,6 +77,7 @@ def Finding(
     remediation: str = "",
     cvss_score: float = 0.0,
     confidence: str = "firm",
+    cpe: str = "",
 ) -> _Finding:
     """Compatibility factory: build a canonical core Finding from the toolkit's
     historical keyword shape, so the existing call sites stay unchanged while
@@ -91,6 +92,7 @@ def Finding(
         remediation=remediation,
         cvss_score=cvss_score,
         confidence=confidence,
+        cpe=cpe,
     )
 
 
@@ -199,6 +201,7 @@ class VulnScanner:
                 confidence = entry.get("confidence", "confirmed")
 
             score = entry.get("cvss_score", 0.0)
+            from recon.core.cpe import to_cpe
             f = Finding(
                 severity=_cvss_to_severity(score),
                 finding=entry.get("cve_id", "UNKNOWN"),
@@ -209,6 +212,7 @@ class VulnScanner:
                 remediation=entry.get("remediation", ""),
                 cvss_score=score,
                 confidence=confidence,
+                cpe=to_cpe(service=entry.get("service", service), banner=banner),
             )
             found.append(f)
             self._add_finding(f)

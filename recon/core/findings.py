@@ -86,6 +86,7 @@ class Finding(BaseModel):
     references: list[str] = Field(default_factory=list)
     remediation: str = ""
     kev: bool = False  # CVE is in CISA's Known Exploited Vulnerabilities catalog
+    cpe: str = ""      # CPE 2.3 product identifier, for NVD/feed correlation
 
     @model_validator(mode="after")
     def _tag_kev(self) -> "Finding":
@@ -103,6 +104,7 @@ class Finding(BaseModel):
             "cve": list(self.cve),
             "cvss": self.cvss,
             "kev": self.kev,
+            "cpe": self.cpe,
             "host": self.host,
             "port": self.port,
             "service": self.service,
@@ -126,6 +128,7 @@ class Finding(BaseModel):
         host: str = "",
         references: list[str] | None = None,
         confidence: object = Confidence.firm,
+        cpe: str = "",
         **_ignored: object,
     ) -> "Finding":
         """Build a Finding from the old vuln_scan keyword shape.
@@ -151,4 +154,5 @@ class Finding(BaseModel):
             evidence=evidence,
             remediation=remediation,
             references=list(references or []),
+            cpe=cpe,
         )
